@@ -343,29 +343,53 @@ async function faturaOku(){
 }
 
 function buildPrompt(){
-  return `Bu bir Türk restoran faturasıdır. Tüm kalemleri çıkar. SADECE JSON döndür, başka hiçbir şey yazma, markdown veya kod bloğu kullanma.
+  return `Bu bir Türk restoran faturasıdır. Sen deneyimli bir restoran maliyet uzmanısın. Her kalemi mutfakta kullanılabilir hale getir. SADECE JSON döndür, başka hiçbir şey yazma, markdown veya kod bloğu kullanma.
 
 Format:
-{"tedarikci":"firma adı veya boş string","tarih":"YYYY-MM-DD veya bugünün tarihi","toplam":0,"kalemler":[{"urun_adi":"faturadaki ürün adı","marka":"marka veya null","miktar":0,"birim":"kg/lt/gr/ml/adet/paket/kutu","birim_fiyat":0}]}
+{"tedarikci":"firma adı","tarih":"YYYY-MM-DD","toplam":0,"kalemler":[{"temiz_ad":"kısa malzeme adı","fatura_adi":"faturadaki tam ad","marka":"marka veya null","kategori":"gida veya sarf","net_miktar":0,"temel_birim":"kg/lt/adet","koli_adet":0,"birim_fiyat_temel":0,"satir_tutari":0}]}
 
-Kurallar:
-- birim_fiyat: KDV dahil birim başına TL fiyat
-- miktar: sayısal değer
-- Tüm kalemleri ekle, atlamadan`;
+KURALLAR — çok önemli:
+
+1) temiz_ad: Reçetede kullanılacak kısa, sade ad. Ambalaj/gramaj/marka YAZMA.
+   "TEMİZLENMİŞ BTN KALAMAR 12KG" → "Kalamar"
+   "KAANLAR MASCARPONE 400G" → "Mascarpone"
+   "METRO CHEF SÜZME YOĞURT 5KG" → "Süzme Yoğurt"
+   "PİLİÇ BUT IZGARA KG TB UFM" → "Piliç But"
+
+2) temel_birim: Ağırlık ürünü ise "kg", sıvı ise "lt", sayılabilir ise "adet".
+   Peynir/et/balık/un/şeker → kg. Yağ/süt/sirke → lt. Yumurta/ekmek → adet.
+
+3) net_miktar: Ürünün TEMEL BİRİM cinsinden TOPLAM net içeriği (koli sayısı × ambalaj içeriği).
+   "12KG kalamar, 1 adet alınmış" → net_miktar: 12, temel_birim: "kg"
+   "MASCARPONE 400G, 5 adet alınmış" → net_miktar: 2 (5×0.4kg), temel_birim: "kg"
+   "SÜZME YOĞURT 5KG, 2 adet" → net_miktar: 10, temel_birim: "kg"
+   "YUMURTA 150Lİ, 1 adet" → net_miktar: 150, temel_birim: "adet"
+
+4) birim_fiyat_temel: TEMEL BİRİM başına KDV DAHİL fiyat (satir_tutari ÷ net_miktar, KDV ekleyerek).
+   Kalamar 11.605,20 TL + %1 KDV = 11.721 TL ÷ 12 kg ≈ 976,8 TL/kg
+   Mascarpone: (2.550 + %1) ÷ 2 kg ≈ 1.287,75 TL/kg
+
+5) kategori: Yemekte kullanılan her şey "gida". Temizlik/ambalaj/kömür/mendil/kase/camsil gibi yenmeyenler "sarf".
+
+6) koli_adet: Faturada alınan paket/adet sayısı (bilgi amaçlı).
+
+7) satir_tutari: O kalemin KDV dahil toplam tutarı.
+
+Tüm kalemleri ekle, hiçbirini atlama.`;
 }
 
 async function callClaude(msgContent){
-  const resp=await fetch('/api/proxy',{
+  const resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{
       'Content-Type':'application/json',
       'x-api-key':apiKey,
       'anthropic-version':'2023-06-01',
-      
+      'anthropic-dangerous-direct-browser-access':'true'
     },
     body:JSON.stringify({
       model:'claude-sonnet-4-6',
-      max_tokens:4000,
+      max_tokens:8000,
       messages:[{role:'user',content:msgContent}]
     })
   });
@@ -396,19 +420,23 @@ function gosterOnay(parsed){
   const alan=document.getElementById('onay-alan');
 
   const kalemHTML=(parsed.kalemler||[]).map((k,i)=>{
-    const esl=eslestir(k.urun_adi,k.marka);
+    const esl=eslestir(k.temiz_ad,k.marka,k.fatura_adi);
+    const sarfMi=(k.kategori==='sarf');
     return `<div class="onay-kalem">
-      <input type="checkbox" id="cb-${i}" checked>
+      <input type="checkbox" id="cb-${i}" ${sarfMi?'':'checked'}>
       <div class="kd">
-        <strong>${k.urun_adi}${k.marka?' · '+k.marka:''}</strong>
-        <span>${fmt(k.miktar,3)} ${k.birim||''} × ${fmtTL(k.birim_fiyat||0)}</span>
+        <strong>${k.temiz_ad||k.fatura_adi}${k.marka?' · '+k.marka:''} ${sarfMi?'<span class="badge warn" style="margin-left:4px">sarf</span>':''}</strong>
+        <span>${fmt(k.net_miktar,2)} ${k.temel_birim} · <strong style="color:var(--text)">${fmtTL(k.birim_fiyat_temel||0)}/${k.temel_birim}</strong> · <span style="color:var(--text3)">${k.fatura_adi}</span></span>
       </div>
       ${esl
         ?`<span class="badge ok">→ ${esl.ad}</span>`
-        :`<span class="badge warn">Yeni malzeme</span>`
+        :`<span class="badge info">yeni</span>`
       }
     </div>`;
   }).join('');
+
+  const gidaSayisi=(parsed.kalemler||[]).filter(k=>k.kategori!=='sarf').length;
+  const sarfSayisi=(parsed.kalemler||[]).filter(k=>k.kategori==='sarf').length;
 
   alan.innerHTML=`<div class="card">
     <div class="step"><div class="step-n">3</div><strong>Kalemleri onayla ve kaydet</strong></div>
@@ -417,6 +445,7 @@ function gosterOnay(parsed){
       <div class="metric"><div class="val" style="font-size:15px">${parsed.tarih||'—'}</div><div class="lbl">Tarih</div></div>
       <div class="metric"><div class="val" style="font-size:15px">${fmtTL(parsed.toplam||0)}</div><div class="lbl">Toplam</div></div>
     </div>
+    <div class="info-box">${gidaSayisi} gıda malzemesi işaretli. ${sarfSayisi} sarf malzemesi (kömür, temizlik vb.) food cost'a girmesin diye işaretsiz — istersen elle işaretleyebilirsin.</div>
     <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:16px">
       ${kalemHTML||'<div class="empty">Kalem bulunamadı</div>'}
     </div>
@@ -429,15 +458,17 @@ function gosterOnay(parsed){
   alan.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-function eslestir(urunAdi,marka){
-  if(!urunAdi)return null;
-  const ara=(urunAdi+(marka?' '+marka:'')).toLowerCase().trim();
+function eslestir(temizAd,marka,faturaAdi){
+  if(!temizAd&&!faturaAdi)return null;
+  const aday=[temizAd,faturaAdi].filter(Boolean).map(s=>s.toLowerCase().trim());
   let best=null,bestScore=0;
   for(const m of DB.malzeme){
     const adlar=[m.ad,m.marka,...(m.alternatif_adlar||[])].filter(Boolean).map(s=>s.toLowerCase());
-    for(const ad of adlar){
-      if(ara===ad){if(100>bestScore){bestScore=100;best=m;}}
-      else if(ara.includes(ad)||ad.includes(ara)){if(70>bestScore){bestScore=70;best=m;}}
+    for(const a of aday){
+      for(const ad of adlar){
+        if(a===ad){if(100>bestScore){bestScore=100;best=m;}}
+        else if(a.includes(ad)||ad.includes(a)){if(70>bestScore){bestScore=70;best=m;}}
+      }
     }
     if(bestScore===100)break;
   }
@@ -463,14 +494,31 @@ function onaylaFatura(){
   (p.kalemler||[]).forEach((k,i)=>{
     const cb=document.getElementById('cb-'+i);
     if(!cb||!cb.checked)return;
-    const esl=eslestir(k.urun_adi,k.marka);
-    const kalem={ad:k.urun_adi,marka:k.marka,miktar:k.miktar,birim:k.birim,birim_fiyat:k.birim_fiyat,malzeme_id:null};
+    const fiyat=k.birim_fiyat_temel||0;
+    const esl=eslestir(k.temiz_ad,k.marka,k.fatura_adi);
+    const kalem={ad:k.temiz_ad,fatura_adi:k.fatura_adi,marka:k.marka,miktar:k.net_miktar,birim:k.temel_birim,birim_fiyat:fiyat,malzeme_id:null};
     if(esl){
       kalem.malzeme_id=esl.id;
-      guncelleFiyat(esl,k.birim_fiyat,tarih);
+      guncelleFiyat(esl,fiyat,tarih);
+      // Fatura adını alternatif ad olarak ekle (bir dahaki sefere otomatik eşleşsin)
+      if(k.fatura_adi&&esl.ad!==k.fatura_adi){
+        if(!esl.alternatif_adlar)esl.alternatif_adlar=[];
+        if(!esl.alternatif_adlar.includes(k.fatura_adi))esl.alternatif_adlar.push(k.fatura_adi);
+      }
       esN++;
     } else {
-      const yeni={id:uid(),ad:k.urun_adi,marka:k.marka||'',alternatif_adlar:[],kategori:'Diğer',son_fiyat:k.birim_fiyat||0,birim:k.birim||'adet',tedarikci:p.tedarikci||'',fiyat_tarihi:tarih,fiyat_gecmisi:k.birim_fiyat>0?[{fiyat:k.birim_fiyat,tarih}]:[]};
+      const yeni={
+        id:uid(),
+        ad:k.temiz_ad||k.fatura_adi,
+        marka:k.marka||'',
+        alternatif_adlar:k.fatura_adi&&k.fatura_adi!==k.temiz_ad?[k.fatura_adi]:[],
+        kategori:k.kategori==='sarf'?'Sarf':'Diğer',
+        son_fiyat:fiyat,
+        birim:k.temel_birim||'adet',
+        tedarikci:p.tedarikci||'',
+        fiyat_tarihi:tarih,
+        fiyat_gecmisi:fiyat>0?[{fiyat,tarih}]:[]
+      };
       DB.malzeme.push(yeni);
       kalem.malzeme_id=yeni.id;
       yeniN++;
@@ -572,7 +620,7 @@ function renderMalzemeModal(){
       <input id="m-alt" placeholder="Örn: Zeytin yağı, zeytinyağı sıvı">
       <div class="grid2">
         <div><label>Kategori</label>
-        <select id="m-kat"><option value="">Seç...</option><option>Et & Balık</option><option>Sebze & Meyve</option><option>Süt & Peynir</option><option>Kuru Gıda</option><option>Baharat & Sos</option><option>İçecek</option><option>Unlu Mamul</option><option>Yağ & Sirke</option><option>Diğer</option></select></div>
+        <select id="m-kat"><option value="">Seç...</option><option>Et & Balık</option><option>Sebze & Meyve</option><option>Süt & Peynir</option><option>Kuru Gıda</option><option>Baharat & Sos</option><option>İçecek</option><option>Unlu Mamul</option><option>Yağ & Sirke</option><option>Sarf</option><option>Diğer</option></select></div>
         <div><label>Birim</label>
         <select id="m-birim"><option value="kg">kg</option><option value="gr">gr</option><option value="lt">lt</option><option value="ml">ml</option><option value="adet">adet</option><option value="paket">paket</option><option value="kutu">kutu</option><option value="demet">demet</option></select></div>
       </div>
