@@ -7,118 +7,196 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#ffffff;--bg2:#f7f7f5;--bg3:#f0eeea;
-  --text:#1a1a1a;--text2:#6b6b6b;--text3:#9b9b9b;
-  --border:#e0ddd8;--border2:#c8c5bf;
-  --green:#15803d;--green-bg:#f0fdf4;--green-border:#bbf7d0;
-  --amber:#92400e;--amber-bg:#fffbeb;--amber-border:#fde68a;
-  --red:#991b1b;--red-bg:#fef2f2;--red-border:#fecaca;
-  --blue:#1e40af;--blue-bg:#eff6ff;--blue-border:#bfdbfe;
-  --radius:10px;--radius-sm:6px;
+  --bg:#ffffff;--bg2:#f6f5f2;--bg3:#eceae4;
+  --ink:#23201c;--ink2:#6f6a62;--ink3:#a39d92;
+  --line:#e4e1da;--line2:#d0ccc2;
+  --sea:#0d7878;--sea-bg:#e6f4f3;--sea-border:#a8ddd9;--sea-ink:#085656;
+  --green:#1a7a44;--green-bg:#eaf6ee;--green-border:#b3ddc2;
+  --amber:#9a6410;--amber-bg:#fdf3e3;--amber-border:#f0d6a3;
+  --red:#a8322c;--red-bg:#fbecea;--red-border:#f0bdb8;
+  --gold:#b8893a;
+  --r:12px;--r-sm:8px;--r-lg:16px;
+  --text:#23201c;--text2:#6f6a62;--text3:#a39d92;--border:#e4e1da;--radius-sm:8px;--blue:#0d7878;
+  --shadow:0 1px 2px rgba(35,32,28,0.04),0 2px 8px rgba(35,32,28,0.05);
+  --shadow-lg:0 8px 30px rgba(35,32,28,0.12);
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);font-size:14px;min-height:100vh}
-#app{max-width:960px;margin:0 auto;padding:16px}
-header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 20px}
-header h1{font-size:20px;font-weight:600;letter-spacing:-0.3px}
-header span{font-size:13px;color:var(--text2)}
-nav{display:flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:20px;overflow-x:auto}
-.tab{padding:8px 16px;border:none;background:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap;transition:all 0.12s}
-.tab.active{background:var(--bg3);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
-.tab:hover:not(.active){color:var(--text);background:var(--bg2)}
-.page{display:none}.page.active{display:block}
-.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
-.card-title{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:500;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);cursor:pointer;transition:all 0.12s}
-.btn:hover{background:var(--bg2)}
-.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
-.btn.primary:hover{opacity:0.85}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg2);color:var(--ink);font-size:14px;min-height:100vh;-webkit-font-smoothing:antialiased}
+#app{display:flex;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{width:228px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 20px}
+.brand-logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--sea),#0a5f5f);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.brand-txt h1{font-size:15px;font-weight:700;letter-spacing:-0.2px;line-height:1.1}
+.brand-txt span{font-size:11px;color:var(--ink2)}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink2);margin-bottom:2px;border:none;background:none;width:100%;text-align:left;transition:all 0.12s}
+.nav-item:hover{background:var(--bg2);color:var(--ink)}
+.nav-item.active{background:var(--sea-bg);color:var(--sea-ink);font-weight:600}
+.nav-item .ico{font-size:16px;width:18px;text-align:center;flex-shrink:0}
+.nav-item .ct{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink3);background:var(--bg3);padding:1px 7px;border-radius:10px}
+.nav-item.active .ct{background:var(--bg);color:var(--sea)}
+.sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.sidebar-foot .btn{justify-content:flex-start;font-size:12.5px;padding:8px 12px;border:none;color:var(--ink2)}
+.sidebar-foot .btn:hover{background:var(--bg2);color:var(--ink)}
+
+/* ── MAIN ── */
+.main{flex:1;min-width:0;padding:28px 36px;max-width:1180px}
+.page-head{margin-bottom:24px}
+.page-head h2{font-size:23px;font-weight:700;letter-spacing:-0.4px}
+.page-head p{color:var(--ink2);font-size:13.5px;margin-top:3px}
+.page{display:none}.page.active{display:block;animation:fade 0.25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:22px;margin-bottom:18px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 16px;font-size:13px;font-weight:600;border:1px solid var(--line2);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);cursor:pointer;transition:all 0.12s;white-space:nowrap}
+.btn:hover{background:var(--bg2);border-color:var(--ink3)}
+.btn.primary{background:var(--sea);color:#fff;border-color:var(--sea)}
+.btn.primary:hover{background:#0a6363;border-color:#0a6363}
 .btn.danger{color:var(--red);border-color:var(--red-border)}
 .btn.danger:hover{background:var(--red-bg)}
-.btn.sm{padding:5px 10px;font-size:12px}
-input,select,textarea{font-family:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;width:100%;outline:none;transition:border 0.12s}
-input:focus,select:focus,textarea:focus{border-color:#888}
-textarea{resize:vertical;min-height:140px;font-family:monospace;font-size:12px;line-height:1.6}
-label{font-size:12px;color:var(--text2);display:block;margin-bottom:5px;margin-top:14px;font-weight:500}
+.btn.sm{padding:6px 11px;font-size:12px;font-weight:500}
+.btn.ghost{border-color:transparent;color:var(--ink2)}
+.btn.ghost:hover{background:var(--bg2)}
+
+input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line2);border-radius:var(--r-sm);padding:10px 12px;width:100%;outline:none;transition:all 0.12s}
+input:focus,select:focus,textarea:focus{border-color:var(--sea);box-shadow:0 0 0 3px var(--sea-bg)}
+input::placeholder{color:var(--ink3)}
+textarea{resize:vertical;min-height:140px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;line-height:1.6}
+label{font-size:12px;color:var(--ink2);display:block;margin-bottom:6px;margin-top:16px;font-weight:600}
 label:first-child{margin-top:0}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.metric{background:var(--bg2);border-radius:var(--radius-sm);padding:16px;text-align:center}
-.metric .val{font-size:24px;font-weight:600;line-height:1}
-.metric .lbl{font-size:12px;color:var(--text2);margin-top:4px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.05em;background:var(--bg2)}
-td{padding:11px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+.metric{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow)}
+.metric .lbl{font-size:12px;color:var(--ink2);font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.metric .val{font-size:27px;font-weight:700;line-height:1;letter-spacing:-0.5px}
+.metric .val.sm{font-size:17px}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;font-weight:700;color:var(--ink2);padding:11px 14px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:0.04em;background:var(--bg2)}
+td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--bg2)}
-.badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600}
-.badge.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
-.badge.warn{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
-.badge.bad{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
-.badge.info{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
-.empty{text-align:center;padding:48px 20px;color:var(--text3)}
-.empty svg{margin-bottom:12px;opacity:0.4}
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
-.modal{background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);padding:24px;width:min(520px,100%);max-height:90vh;overflow-y:auto;position:relative}
-.modal h3{font-size:16px;font-weight:600;margin-bottom:18px}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1;padding:4px}
+tbody tr{transition:background 0.1s}
+tbody tr:hover td{background:var(--bg2)}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--green-bg);color:var(--green)}
+.badge.warn{background:var(--amber-bg);color:var(--amber)}
+.badge.bad{background:var(--red-bg);color:var(--red)}
+.badge.info{background:var(--sea-bg);color:var(--sea-ink)}
+.badge.neutral{background:var(--bg3);color:var(--ink2)}
+
+.empty{text-align:center;padding:56px 20px;color:var(--ink3)}
+.empty svg{margin-bottom:14px;opacity:0.35}
+.empty .big{font-size:15px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+
+.modal-bg{position:fixed;inset:0;background:rgba(35,32,28,0.45);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;animation:fade 0.15s ease}
+.modal{background:var(--bg);border-radius:var(--r-lg);width:min(580px,100%);max-height:90vh;overflow-y:auto;position:relative;box-shadow:var(--shadow-lg)}
+.modal-head{position:sticky;top:0;background:var(--bg);padding:22px 26px 16px;border-bottom:1px solid var(--line);z-index:2}
+.modal-head h3{font-size:17px;font-weight:700}
+.modal-body{padding:22px 26px}
+.modal-foot{position:sticky;bottom:0;background:var(--bg);padding:16px 26px;border-top:1px solid var(--line);display:flex;gap:10px}
+.modal-close{position:absolute;top:20px;right:22px;background:var(--bg2);border:none;width:30px;height:30px;border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink2);line-height:1;display:flex;align-items:center;justify-content:center;transition:all 0.12s}
+.modal-close:hover{background:var(--bg3);color:var(--ink)}
+
 .row-line{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px}
 .row-line>div{flex:1}
-.section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.info-box{background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:var(--radius-sm);padding:12px 16px;font-size:13px;color:var(--blue);margin-bottom:16px;line-height:1.5}
-.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px}
+.ing-row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.ing-row .qty{max-width:90px;text-align:right}
+.ing-row .unit{min-width:38px;font-size:12px;color:var(--ink2);text-align:left}
+.ing-row .line-total{min-width:78px;font-size:13px;color:var(--ink);text-align:right;font-weight:600}
+.combo{position:relative;flex:2}
+.combo-input{width:100%}
+.combo-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:1px solid var(--line2);border-radius:var(--r-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50}
+.combo-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bg2)}
+.combo-item:last-child{border-bottom:none}
+.combo-item:hover{background:var(--sea-bg)}
+.combo-sub{font-size:11px;color:var(--ink2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.combo-empty{padding:14px;font-size:12px;color:var(--ink3);text-align:center}
+
+.section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.info-box{background:var(--sea-bg);border:1px solid var(--sea-border);border-radius:var(--r-sm);padding:13px 16px;font-size:13px;color:var(--sea-ink);margin-bottom:18px;line-height:1.55}
+.warn-box{background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--r-sm);padding:13px 16px;font-size:13px;color:var(--amber);margin-bottom:18px;line-height:1.55}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--sea);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:36px;text-align:center;cursor:pointer;transition:all 0.15s;color:var(--text2)}
-.upload-zone:hover{border-color:#888;color:var(--text);background:var(--bg2)}
-.upload-zone svg{display:block;margin:0 auto 10px;opacity:0.5}
-.cost-bar-bg{height:5px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:6px}
-.cost-bar{height:5px;border-radius:3px}
-.onay-kalem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.upload-zone{border:2px dashed var(--line2);border-radius:var(--r);padding:40px;text-align:center;cursor:pointer;transition:all 0.15s;color:var(--ink2)}
+.upload-zone:hover{border-color:var(--sea);color:var(--sea);background:var(--sea-bg)}
+.upload-zone svg{display:block;margin:0 auto 12px;opacity:0.5}
+.cost-bar-bg{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:8px}
+.cost-bar{height:6px;border-radius:3px;transition:width 0.3s}
+.onay-kalem{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .onay-kalem:last-child{border-bottom:none}
-.onay-kalem input[type=checkbox]{width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.onay-kalem input[type=checkbox]{width:17px;height:17px;cursor:pointer;flex-shrink:0;accent-color:var(--sea)}
 .onay-kalem .kd{flex:1;min-width:0}
 .onay-kalem .kd strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.onay-kalem .kd span{font-size:12px;color:var(--text2)}
-.search-box{position:relative;margin-bottom:16px}
-.search-box input{padding-left:36px}
-.search-box::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
+.onay-kalem .kd span{font-size:12px;color:var(--ink2)}
+.search-box{position:relative;margin-bottom:18px;max-width:380px}
+.search-box input{padding-left:38px}
+.search-box::before{content:'🔍';position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none;opacity:0.6}
 .cost-ok{color:var(--green)}
 .cost-warn{color:var(--amber)}
 .cost-bad{color:var(--red)}
-.step{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.step-n{width:26px;height:26px;border-radius:50%;background:var(--text);color:var(--bg);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.sep{border:none;border-top:1px solid var(--border);margin:20px 0}
-#api-key-bar{background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-#api-key-bar span{font-size:13px;color:var(--amber);flex:1}
+.step{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+.step-n{width:27px;height:27px;border-radius:50%;background:var(--sea);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sep{border:none;border-top:1px solid var(--line);margin:22px 0}
+#api-key-bar{background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--r-sm);padding:13px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#api-key-bar span{font-size:13px;color:var(--amber);flex:1;font-weight:500}
 #api-key-bar input{max-width:300px;margin:0}
-.progress{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-top:10px}
-.progress-bar{height:4px;background:var(--text);border-radius:2px;transition:width 0.4s}
+.progress{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:12px}
+.progress-bar{height:5px;background:var(--sea);border-radius:3px;transition:width 0.4s}
+.num{font-variant-numeric:tabular-nums}
+.live-calc{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:14px}
+.live-calc>div{background:var(--bg2);padding:14px}
+.live-calc .lc-lbl{font-size:11px;color:var(--ink2);font-weight:600;margin-bottom:5px}
+.live-calc .lc-val{font-size:18px;font-weight:700;letter-spacing:-0.3px}
+
+@media(max-width:820px){
+  #app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:12px;gap:4px}
+  .brand{width:100%;padding:4px 8px 12px}
+  .nav-item{width:auto}
+  .nav-item .ct{display:none}
+  .sidebar-foot{flex-direction:row;border-top:none;width:100%;padding-top:0}
+  .main{padding:20px}
+}
 </style>
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>🍽 Yeniliman</h1>
-    <span>Maliyet & Reçete Takip</span>
-  </header>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">🍽</div>
+      <div class="brand-txt"><h1>Yeniliman</h1><span>Maliyet & Reçete</span></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <button class="btn" onclick="yedekAl()">⬇ Yedek Al</button>
+      <button class="btn" onclick="document.getElementById('restore-file').click()">⬆ Geri Yükle</button>
+      <input type="file" id="restore-file" accept=".json" style="display:none" onchange="yedekYukle(this)">
+    </div>
+  </aside>
 
-  <div id="api-key-bar">
-    <span>⚠️ Anthropic API Key gir (AI özellikleri için gerekli)</span>
-    <input type="password" id="api-key-input" placeholder="sk-ant-..." style="max-width:280px">
-    <button class="btn primary" onclick="saveApiKey()">Kaydet</button>
-  </div>
-
-  <nav id="nav"></nav>
-  <div id="page-container"></div>
+  <main class="main">
+    <div id="api-key-bar">
+      <span>⚠️ Anthropic API Key gir (AI özellikleri için gerekli)</span>
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." style="max-width:280px">
+      <button class="btn primary" onclick="saveApiKey()">Kaydet</button>
+    </div>
+    <div id="page-container"></div>
+  </main>
 </div>
 
 <script>
 const TABS=[
-  {id:'dashboard',label:'📊 Özet'},
-  {id:'fatura',label:'🧾 Faturalar'},
-  {id:'malzeme',label:'📦 Malzemeler'},
-  {id:'recete',label:'👨‍🍳 Reçeteler'},
-  {id:'menu',label:'🍴 Menü & Fiyat'},
+  {id:'dashboard',label:'Özet',ico:'📊'},
+  {id:'fatura',label:'Faturalar',ico:'🧾'},
+  {id:'malzeme',label:'Malzemeler',ico:'📦'},
+  {id:'recete',label:'Reçeteler',ico:'👨‍🍳'},
+  {id:'menu',label:'Menü & Fiyat',ico:'🍴'},
 ];
 
 let DB={malzeme:[],fatura:[],recete:[],menu_items:[]};
@@ -143,6 +221,34 @@ function loadDB(){
 
 function saveDB(){
   try{localStorage.setItem('yn_db',JSON.stringify(DB));}catch(e){alert('Depolama hatası: '+e.message);}
+}
+
+function yedekAl(){
+  const data=JSON.stringify(DB,null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const tarih=new Date().toISOString().slice(0,10);
+  a.href=url;a.download=`yeniliman-yedek-${tarih}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function yedekYukle(input){
+  const file=input.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const veri=JSON.parse(r.result);
+      if(!veri.malzeme||!veri.recete){alert('Geçersiz yedek dosyası.');return;}
+      if(!confirm('Mevcut tüm veriler bu yedekle değiştirilecek. Devam edilsin mi?'))return;
+      DB={malzeme:veri.malzeme||[],fatura:veri.fatura||[],recete:veri.recete||[],menu_items:veri.menu_items||[]};
+      saveDB();render();
+      alert('✓ Yedek geri yüklendi.');
+    }catch(e){alert('Dosya okunamadı: '+e.message);}
+    input.value='';
+  };
+  r.readAsText(file);
 }
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -179,9 +285,13 @@ function birimMaliyet(r){
 }
 
 function renderNav(){
-  document.getElementById('nav').innerHTML=TABS.map(t=>
-    `<button class="tab${t.id===activeTab?' active':''}" onclick="switchTab('${t.id}')">${t.label}</button>`
-  ).join('');
+  const counts={dashboard:'',fatura:DB.fatura.length,malzeme:DB.malzeme.length,recete:DB.recete.length,menu:DB.menu_items.length};
+  document.getElementById('nav').innerHTML=TABS.map(t=>{
+    const c=counts[t.id];
+    return `<button class="nav-item${t.id===activeTab?' active':''}" onclick="switchTab('${t.id}')">
+      <span class="ico">${t.ico}</span><span>${t.label}</span>${c!==''&&c>0?`<span class="ct">${c}</span>`:''}
+    </button>`;
+  }).join('');
 }
 
 function switchTab(id){activeTab=id;render();}
@@ -205,30 +315,36 @@ function renderDashboard(){
   });
   const avg=cc>0?ac/cc:0;
 
-  const tableRows=DB.menu_items.length===0
-    ?`<tr><td colspan="5"><div class="empty">Henüz menü ürünü eklenmedi</div></td></tr>`
-    :DB.menu_items.map(m=>{
-      const r=DB.recete.find(x=>x.id===m.recete_id);
-      const mc=r?hesapla(r):0;
-      const pct=m.fiyat>0?(mc/m.fiyat)*100:0;
-      return `<tr>
-        <td><strong>${m.ad}</strong></td>
-        <td>${fmtTL(mc)}</td>
-        <td>${fmtTL(m.fiyat)}</td>
-        <td class="${mc<=m.fiyat?'cost-ok':'cost-bad'}">${fmtTL(m.fiyat-mc)}</td>
-        <td><span class="badge ${costBadge(pct)}">%${fmt(pct,1)}</span></td>
-      </tr>`;
-    }).join('');
+  // En karlı ve en zayıf ürünler
+  const analiz=DB.menu_items.map(m=>{
+    const r=DB.recete.find(x=>x.id===m.recete_id);
+    const mc=r?hesapla(r):0;
+    const pct=m.fiyat>0?(mc/m.fiyat)*100:0;
+    return {...m,mc,pct,kar:m.fiyat-mc};
+  });
+  const sorunlu=analiz.filter(a=>a.pct>40).length;
+
+  const tableRows=analiz.length===0
+    ?`<tr><td colspan="5"><div class="empty"><div class="big">Henüz menü ürünü yok</div>Reçete kurup menüye bağlayınca karlılık burada görünecek</div></td></tr>`
+    :analiz.sort((a,b)=>b.pct-a.pct).map(m=>`<tr>
+        <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}</small>`:''}</td>
+        <td class="num">${fmtTL(m.mc)}</td>
+        <td class="num"><strong>${fmtTL(m.fiyat)}</strong></td>
+        <td class="num ${m.kar>=0?'cost-ok':'cost-bad'}">${fmtTL(m.kar)}</td>
+        <td><span class="badge ${costBadge(m.pct)}">%${fmt(m.pct,1)}</span></td>
+      </tr>`).join('');
 
   return `<div class="page active">
-    <div class="grid4" style="margin-bottom:20px">
-      <div class="metric"><div class="val">${DB.malzeme.length}</div><div class="lbl">Malzeme</div></div>
-      <div class="metric"><div class="val">${DB.recete.length}</div><div class="lbl">Reçete</div></div>
-      <div class="metric"><div class="val">${DB.menu_items.length}</div><div class="lbl">Menü Ürünü</div></div>
-      <div class="metric"><div class="val ${costColor(avg)}">%${fmt(avg,1)}</div><div class="lbl">Ort. Food Cost</div></div>
+    <div class="page-head"><h2>Genel Bakış</h2><p>Yeniliman Restaurant · maliyet ve karlılık özeti</p></div>
+    <div class="grid4" style="margin-bottom:18px">
+      <div class="metric"><div class="lbl">📦 Malzeme</div><div class="val num">${DB.malzeme.length}</div></div>
+      <div class="metric"><div class="lbl">👨‍🍳 Reçete</div><div class="val num">${DB.recete.length}</div></div>
+      <div class="metric"><div class="lbl">🍴 Menü ürünü</div><div class="val num">${DB.menu_items.length}</div></div>
+      <div class="metric"><div class="lbl">📊 Ort. food cost</div><div class="val num ${costColor(avg)}">%${fmt(avg,1)}</div></div>
     </div>
+    ${sorunlu>0?`<div class="warn-box">⚠️ ${sorunlu} ürünün food cost'u %40'ın üzerinde. Bu ürünlerin fiyatını gözden geçirmek isteyebilirsin.</div>`:''}
     <div class="card">
-      <div class="card-title">Menü Karlılığı <span class="badge info">Hedef ≤ %32</span></div>
+      <div class="card-title">Menü Karlılığı <span class="badge info">Hedef ≤ %32</span> <span class="badge neutral">yüksekten düşüğe</span></div>
       <table>
         <thead><tr><th>Ürün</th><th>Maliyet</th><th>Satış</th><th>Kar</th><th>Food Cost</th></tr></thead>
         <tbody>${tableRows}</tbody>
@@ -259,9 +375,7 @@ function renderFatura(){
     </table></div>`;
 
   return `<div class="page active">
-    <div class="section-hd">
-      <div><h2 style="font-size:18px;font-weight:600">Faturalar</h2><p style="color:var(--text2);font-size:13px;margin-top:2px">Fatura yükle veya yapıştır → AI okur → Malzemeler otomatik oluşur</p></div>
-    </div>
+    <div class="page-head"><h2>Faturalar</h2><p>Fatura yükle veya yapıştır → AI okur → malzemeler ve fiyatlar otomatik güncellenir</p></div>
 
     <div class="card">
       <div class="step"><div class="step-n">1</div><strong>Fatura yükle (PDF veya görsel)</strong></div>
@@ -289,6 +403,17 @@ function renderFatura(){
     <div id="onay-alan"></div>
     ${liste}
     ${renderFaturaDetayModal()}
+    <div id="degisim-modal" class="modal-bg" style="display:none">
+      <div class="modal" style="width:min(560px,100%)">
+        <div class="modal-head"><h3>💰 Fiyat Değişimleri</h3>
+          <button class="modal-close" onclick="document.getElementById('degisim-modal').style.display='none'">×</button>
+        </div>
+        <div class="modal-body" id="degisim-body"></div>
+        <div class="modal-foot">
+          <button class="btn primary" onclick="document.getElementById('degisim-modal').style.display='none'" style="flex:1">Anladım</button>
+        </div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -510,6 +635,7 @@ function onaylaFatura(){
   const tarih=p.tarih?new Date(p.tarih).toISOString():new Date().toISOString();
   const fatura={id:uid(),tarih,tedarikci:p.tedarikci||'',tutar:p.toplam||0,kalemler:[],eslesti:false};
   let esN=0,yeniN=0;
+  const degisimler=[]; // fiyat değişimi olan malzemeler
 
   (p.kalemler||[]).forEach((k,i)=>{
     const cb=document.getElementById('cb-'+i);
@@ -518,9 +644,15 @@ function onaylaFatura(){
     const esl=eslestir(k.temiz_ad,k.marka,k.fatura_adi);
     const kalem={ad:k.temiz_ad,fatura_adi:k.fatura_adi,marka:k.marka,miktar:k.net_miktar,birim:k.temel_birim,birim_fiyat:fiyat,malzeme_id:null};
     if(esl){
+      const eskiFiyat=esl.son_fiyat||0;
       kalem.malzeme_id=esl.id;
+      // Fiyat değişimini yakala (anlamlı bir değişim varsa)
+      if(eskiFiyat>0&&fiyat>0&&Math.abs(fiyat-eskiFiyat)/eskiFiyat>=0.01){
+        const yuzde=((fiyat-eskiFiyat)/eskiFiyat)*100;
+        const etkilenen=DB.recete.filter(r=>receteIcerirMi(r,esl.id)).map(r=>r.ad);
+        degisimler.push({ad:esl.ad,eski:eskiFiyat,yeni:fiyat,birim:esl.birim,yuzde,etkilenen});
+      }
       guncelleFiyat(esl,fiyat,tarih);
-      // Fatura adını alternatif ad olarak ekle (bir dahaki sefere otomatik eşleşsin)
       if(k.fatura_adi&&esl.ad!==k.fatura_adi){
         if(!esl.alternatif_adlar)esl.alternatif_adlar=[];
         if(!esl.alternatif_adlar.includes(k.fatura_adi))esl.alternatif_adlar.push(k.fatura_adi);
@@ -553,7 +685,59 @@ function onaylaFatura(){
   document.getElementById('fatura-metin').value='';
   _pendingFatura=null;
   render();
-  setTimeout(()=>alert(`✓ Fatura kaydedildi!\n${esN} malzeme fiyatı güncellendi\n${yeniN} yeni malzeme oluşturuldu`),100);
+
+  // Fiyat değişimi varsa uyarı ekranı göster, yoksa basit özet
+  if(degisimler.length){
+    gosterFiyatDegisim(degisimler,esN,yeniN);
+  } else {
+    setTimeout(()=>alert(`✓ Fatura kaydedildi!\n${esN} malzeme fiyatı güncellendi\n${yeniN} yeni malzeme oluşturuldu`),100);
+  }
+}
+
+// Bir reçete (alt reçeteleri dahil) belirli bir malzemeyi içeriyor mu?
+function receteIcerirMi(r,malzemeId,_seen){
+  _seen=_seen||{};
+  if(_seen[r.id])return false;
+  _seen[r.id]=true;
+  if((r.malzemeler||[]).some(rm=>rm.malzeme_id===malzemeId))return true;
+  return (r.alt_receteler||[]).some(ar=>{
+    const sub=DB.recete.find(x=>x.id===ar.recete_id);
+    return sub?receteIcerirMi(sub,malzemeId,{..._seen}):false;
+  });
+}
+
+function gosterFiyatDegisim(degisimler,esN,yeniN){
+  degisimler.sort((a,b)=>Math.abs(b.yuzde)-Math.abs(a.yuzde));
+  const rows=degisimler.map(d=>{
+    const yon=d.yuzde>0?'bad':'ok';
+    const ok=d.yuzde>0?'▲':'▼';
+    const etk=d.etkilenen.length
+      ?`<div style="font-size:12px;color:var(--ink2);margin-top:4px">Etkilenen: ${d.etkilenen.join(', ')}</div>`
+      :`<div style="font-size:12px;color:var(--ink3);margin-top:4px">Henüz reçetede kullanılmıyor</div>`;
+    return `<div style="padding:14px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <strong style="font-size:14px">${d.ad}</strong>
+        <span class="badge ${yon}">${ok} %${fmt(Math.abs(d.yuzde),1)}</span>
+      </div>
+      <div style="font-size:13px;color:var(--ink2);margin-top:4px">
+        ${fmtTL(d.eski)} → <strong style="color:var(--ink)">${fmtTL(d.yeni)}</strong> / ${d.birim}
+      </div>
+      ${etk}
+    </div>`;
+  }).join('');
+
+  const zamSayisi=degisimler.filter(d=>d.yuzde>0).length;
+  const indirimSayisi=degisimler.filter(d=>d.yuzde<0).length;
+
+  const modal=document.getElementById('degisim-modal');
+  document.getElementById('degisim-body').innerHTML=`
+    <div class="info-box" style="margin:0 0 4px">
+      Fatura kaydedildi. ${esN} fiyat güncellendi, ${yeniN} yeni malzeme eklendi.
+      <strong>${degisimler.length} malzemenin fiyatı değişti</strong> (${zamSayisi} zam, ${indirimSayisi} indirim).
+      Aşağıdaki reçetelerin maliyetleri otomatik güncellendi.
+    </div>
+    <div style="border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:14px">${rows}</div>`;
+  modal.style.display='flex';
 }
 
 function gosterFatura(id){
@@ -580,10 +764,11 @@ function deleteFatura(id){
 
 function renderFaturaDetayModal(){
   return `<div id="fd-modal" class="modal-bg" style="display:none">
-    <div class="modal" style="width:min(620px,100%)">
-      <button class="modal-close" onclick="document.getElementById('fd-modal').style.display='none'">×</button>
-      <h3>Fatura Detayı</h3>
-      <div id="fd-body"></div>
+    <div class="modal" style="width:min(640px,100%)">
+      <div class="modal-head"><h3>Fatura Detayı</h3>
+        <button class="modal-close" onclick="document.getElementById('fd-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body" id="fd-body"></div>
     </div>
   </div>`;
 }
@@ -598,11 +783,9 @@ function fileToBase64(file){
 }
 
 /* ── MALZEME ── */
-function renderMalzeme(){
-  const q=(document.getElementById('mq')||{}).value||'';
+function malzemeRows(q){
   const list=DB.malzeme.filter(m=>!q||m.ad.toLowerCase().includes(q.toLowerCase())||(m.kategori||'').toLowerCase().includes(q.toLowerCase()));
-
-  const rows=list.length===0
+  return list.length===0
     ?`<tr><td colspan="5"><div class="empty">${!DB.malzeme.length?'Fatura yükleyince otomatik oluşur. İstersen elle de ekleyebilirsin.':'Sonuç yok.'}</div></td></tr>`
     :list.map(m=>`<tr>
       <td><strong>${m.ad}</strong>${m.marka?`<br><small style="color:var(--text2)">${m.marka}</small>`:''}</td>
@@ -614,15 +797,23 @@ function renderMalzeme(){
         <button class="btn sm danger" onclick="deleteMalzeme('${m.id}')">Sil</button>
       </td>
     </tr>`).join('');
+}
 
+function filterMalzeme(q){
+  const tb=document.getElementById('malzeme-tbody');
+  if(tb)tb.innerHTML=malzemeRows(q);
+}
+
+function renderMalzeme(){
+  const q=(document.getElementById('mq')||{}).value||'';
   return `<div class="page active">
+    <div class="page-head"><h2>Malzemeler</h2><p>${DB.malzeme.length} malzeme · fiyatlar faturalardan otomatik güncellenir</p></div>
     <div class="section-hd">
-      <div><h2 style="font-size:18px;font-weight:600">Malzemeler</h2><p style="color:var(--text2);font-size:13px;margin-top:2px">${DB.malzeme.length} malzeme</p></div>
+      <div class="search-box" style="margin-bottom:0;flex:1"><input id="mq" placeholder="Malzeme veya kategori ara..." oninput="filterMalzeme(this.value)" value="${q}"></div>
       <button class="btn primary" onclick="openAddMalzeme()">+ Elle Ekle</button>
     </div>
-    <div class="search-box"><input id="mq" placeholder="Malzeme veya kategori ara..." oninput="render()" value="${q}"></div>
     <div class="card" style="padding:0;overflow:hidden">
-      <table><thead><tr><th>Malzeme</th><th>Kategori</th><th>Son Fiyat</th><th>Tedarikçi</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th>Malzeme</th><th>Kategori</th><th>Son Fiyat</th><th>Tedarikçi</th><th></th></tr></thead><tbody id="malzeme-tbody">${malzemeRows(q)}</tbody></table>
     </div>
     ${renderMalzemeModal()}
   </div>`;
@@ -631,8 +822,10 @@ function renderMalzeme(){
 function renderMalzemeModal(){
   return `<div id="m-modal" class="modal-bg" style="display:none">
     <div class="modal">
-      <button class="modal-close" onclick="document.getElementById('m-modal').style.display='none'">×</button>
-      <h3 id="m-title">Malzeme Ekle</h3>
+      <div class="modal-head"><h3 id="m-title">Malzeme Ekle</h3>
+        <button class="modal-close" onclick="document.getElementById('m-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
       <input type="hidden" id="m-id">
       <label>Malzeme adı *</label><input id="m-ad" placeholder="Örn: Zeytinyağı">
       <label>Marka</label><input id="m-marka" placeholder="Örn: Komili">
@@ -649,7 +842,8 @@ function renderMalzemeModal(){
         <div><label>Tedarikçi</label>
         <select id="m-ted"><option value="">Seç...</option><option>Metro HoReCa</option><option>Gayeli Toptan</option><option>M.L. Arıkan</option><option>Serbest Pazar</option><option>Diğer</option></select></div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:20px">
+      </div>
+      <div class="modal-foot">
         <button class="btn primary" onclick="saveMalzeme()" style="flex:1">Kaydet</button>
         <button class="btn" onclick="document.getElementById('m-modal').style.display='none'">İptal</button>
       </div>
@@ -714,61 +908,84 @@ function deleteMalzeme(id){
 let rMalzemeler=[];
 let rAltReceteler=[];
 
-function renderRecete(){
-  const cards=DB.recete.length===0
-    ?`<div class="empty"><svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Henüz reçete eklenmedi</div>`
-    :DB.recete.map(r=>{
-      const mc=hesapla(r);
-      const bm=birimMaliyet(r);
-      const mi=DB.menu_items.find(m=>m.recete_id===r.id);
-      const pct=mi&&mi.fiyat>0?(mc/mi.fiyat)*100:null;
-      const altSayisi=(r.alt_receteler||[]).length;
-      const altRecepteMi=DB.recete.some(x=>(x.alt_receteler||[]).some(a=>a.recete_id===r.id));
-      return `<div class="card">
-        <div class="section-hd" style="margin-bottom:6px">
-          <div>
-            <strong style="font-size:15px">${r.ad}</strong>
-            ${altRecepteMi?'<span class="badge info" style="margin-left:6px">alt reçete</span>':''}
-            <span style="font-size:12px;color:var(--text2);margin-left:8px">${r.kategori||''} · ${fmt(r.porsiyon||1,2)} ${r.birim||'porsiyon'}</span>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            ${pct!==null?`<span class="badge ${costBadge(pct)}">%${fmt(pct,1)} food cost</span>`:''}
-            <div style="text-align:right">
-              <strong>${fmtTL(mc)}</strong>
-              <div style="font-size:11px;color:var(--text2)">${fmtTL(bm)}/${r.birim||'porsiyon'}</div>
-            </div>
-            <button class="btn sm" onclick="editRecete('${r.id}')">Düzenle</button>
-            <button class="btn sm danger" onclick="deleteRecete('${r.id}')">Sil</button>
-          </div>
+function receteCards(q,kat){
+  let list=DB.recete;
+  if(q)list=list.filter(r=>r.ad.toLowerCase().includes(q.toLowerCase()));
+  if(kat)list=list.filter(r=>r.kategori===kat);
+  if(!list.length)return `<div class="empty"><div class="big">${DB.recete.length===0?'Henüz reçete eklenmedi':'Sonuç bulunamadı'}</div>${DB.recete.length===0?'Sağ üstten ilk reçeteni ekle':''}</div>`;
+  return list.map(r=>{
+    const mc=hesapla(r);
+    const bm=birimMaliyet(r);
+    const mi=DB.menu_items.find(m=>m.recete_id===r.id);
+    const pct=mi&&mi.fiyat>0?(mc/mi.fiyat)*100:null;
+    const altSayisi=(r.alt_receteler||[]).length;
+    const altRecepteMi=DB.recete.some(x=>(x.alt_receteler||[]).some(a=>a.recete_id===r.id));
+    return `<div class="card" style="margin-bottom:12px">
+      <div class="section-hd" style="margin-bottom:8px">
+        <div style="min-width:0">
+          <strong style="font-size:15px">${r.ad}</strong>
+          ${altRecepteMi?'<span class="badge info" style="margin-left:6px">alt reçete</span>':''}
+          <span style="font-size:12px;color:var(--ink2);margin-left:8px">${r.kategori||''} · ${fmt(r.porsiyon||1,2)} ${r.birim||'porsiyon'}</span>
         </div>
-        <div style="font-size:12px;color:var(--text2)">${(r.malzemeler||[]).length} malzeme${altSayisi>0?' · '+altSayisi+' alt reçete':''}</div>
-        ${pct!==null?`<div class="cost-bar-bg"><div class="cost-bar" style="width:${Math.min(pct,100)}%;background:${pct<=32?'var(--green)':pct<=40?'var(--amber)':'var(--red)'}"></div></div>`:''}
-      </div>`;
-    }).join('');
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          ${pct!==null?`<span class="badge ${costBadge(pct)}">%${fmt(pct,1)} food cost</span>`:''}
+          <div style="text-align:right">
+            <strong class="num">${fmtTL(mc)}</strong>
+            <div style="font-size:11px;color:var(--ink2)" class="num">${fmtTL(bm)}/${r.birim||'porsiyon'}</div>
+          </div>
+          <button class="btn sm" onclick="editRecete('${r.id}')" title="Düzenle">✎</button>
+          <button class="btn sm" onclick="kopyalaRecete('${r.id}')" title="Kopyala">⧉</button>
+          <button class="btn sm danger" onclick="deleteRecete('${r.id}')" title="Sil">✕</button>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--ink2)">${(r.malzemeler||[]).length} malzeme${altSayisi>0?' · '+altSayisi+' alt reçete':''}</div>
+      ${pct!==null?`<div class="cost-bar-bg"><div class="cost-bar" style="width:${Math.min(pct,100)}%;background:${pct<=32?'var(--green)':pct<=40?'var(--amber)':'var(--red)'}"></div></div>`:''}
+    </div>`;
+  }).join('');
+}
 
+function filterRecete(){
+  const q=(document.getElementById('rq')||{}).value||'';
+  const kat=(document.getElementById('rkat-filter')||{}).value||'';
+  const c=document.getElementById('recete-cards');
+  if(c)c.innerHTML=receteCards(q,kat);
+}
+
+function renderRecete(){
+  const kats=[...new Set(DB.recete.map(r=>r.kategori).filter(Boolean))];
   return `<div class="page active">
+    <div class="page-head"><h2>Reçeteler</h2><p>${DB.recete.length} reçete · maliyetler malzeme fiyatlarına göre canlı hesaplanır</p></div>
     <div class="section-hd">
-      <div><h2 style="font-size:18px;font-weight:600">Reçeteler</h2><p style="color:var(--text2);font-size:13px;margin-top:2px">${DB.recete.length} reçete</p></div>
+      <div style="display:flex;gap:10px;flex:1">
+        <div class="search-box" style="margin-bottom:0;flex:1;max-width:320px"><input id="rq" placeholder="Reçete ara..." oninput="filterRecete()"></div>
+        <select id="rkat-filter" style="max-width:170px" onchange="filterRecete()">
+          <option value="">Tüm kategoriler</option>
+          ${kats.map(k=>`<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
       <button class="btn primary" onclick="openAddRecete()">+ Reçete Ekle</button>
     </div>
-    ${cards}
+    <div id="recete-cards">${receteCards('','')}</div>
     ${renderReceteModal()}
   </div>`;
 }
 
 function renderReceteModal(){
   return `<div id="r-modal" class="modal-bg" style="display:none">
-    <div class="modal" style="width:min(580px,100%)">
-      <button class="modal-close" onclick="document.getElementById('r-modal').style.display='none'">×</button>
-      <h3 id="r-title">Reçete Ekle</h3>
+    <div class="modal" style="width:min(600px,100%)">
+      <div class="modal-head">
+        <h3 id="r-title">Reçete Ekle</h3>
+        <button class="modal-close" onclick="document.getElementById('r-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
       <input type="hidden" id="r-id">
       <label>Reçete adı *</label><input id="r-ad" placeholder="Örn: Levrek Izgara">
       <div class="grid2">
         <div>
           <label>Bu reçete ne kadar üretiyor?</label>
           <div style="display:flex;gap:6px">
-            <input id="r-pors" type="number" step="0.001" value="1" min="0" style="flex:1" oninput="renderRMList()">
-            <select id="r-birim" style="max-width:90px" onchange="renderRMList()">
+            <input id="r-pors" type="number" step="0.001" value="1" min="0" style="flex:1" oninput="guncellePreview()">
+            <select id="r-birim" style="max-width:96px" onchange="guncellePreview()">
               <option value="porsiyon">porsiyon</option><option value="kg">kg</option><option value="lt">lt</option><option value="gr">gr</option><option value="ml">ml</option><option value="adet">adet</option>
             </select>
           </div>
@@ -778,21 +995,30 @@ function renderReceteModal(){
       </div>
 
       <hr class="sep">
-      <strong style="font-size:13px">Malzemeler</strong>
-      <div id="rm-list" style="margin-top:8px"></div>
+      <strong style="font-size:13.5px">Malzemeler</strong>
+      <div id="rm-list" style="margin-top:10px"></div>
       <button class="btn" onclick="addRM()" style="margin-top:8px;width:100%">+ Malzeme Ekle</button>
 
-      <div style="margin-top:16px"><strong style="font-size:13px">Alt Reçeteler</strong> <span style="font-size:12px;color:var(--text2)">(sos, harç, baz vb.)</span></div>
-      <div id="ar-list" style="margin-top:8px"></div>
+      <div style="margin-top:18px"><strong style="font-size:13.5px">Alt Reçeteler</strong> <span style="font-size:12px;color:var(--ink2)">(sos, harç, baz vb.)</span></div>
+      <div id="ar-list" style="margin-top:10px"></div>
       <button class="btn" onclick="addAR()" style="margin-top:8px;width:100%">+ Alt Reçete Ekle</button>
 
-      <div id="r-prev" style="display:none;margin-top:16px;padding:14px;background:var(--bg2);border-radius:var(--radius-sm)">
+      <div id="r-prev" style="display:none;margin-top:18px;padding:16px;background:var(--bg2);border-radius:var(--r-sm)">
         <div class="grid2">
-          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Toplam maliyet</div><strong id="r-prev-val">₺0,00</strong></div>
-          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Birim maliyet</div><strong id="r-prev-birim">₺0,00</strong></div>
+          <div><div style="font-size:11px;color:var(--ink2);margin-bottom:5px;font-weight:600">Toplam maliyet</div><strong id="r-prev-val" style="font-size:18px">₺0,00</strong></div>
+          <div><div style="font-size:11px;color:var(--ink2);margin-bottom:5px;font-weight:600">Birim maliyet</div><strong id="r-prev-birim" style="font-size:18px">₺0,00</strong></div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:20px">
+
+      <label>Hedef satış fiyatı (₺) <span style="color:var(--ink3);font-weight:400">— deneme amaçlı, kar hesabını anında görürsün</span></label>
+      <input id="r-hedef" type="number" step="0.01" placeholder="Bir fiyat yaz, kar/food cost anında çıksın" oninput="guncellePreview()">
+      <div id="r-hedef-calc" class="live-calc" style="display:none">
+        <div><div class="lc-lbl">Birim maliyet</div><div class="lc-val num" id="hc-mc">—</div></div>
+        <div><div class="lc-lbl">Kar</div><div class="lc-val num" id="hc-kar">—</div></div>
+        <div><div class="lc-lbl">Food cost</div><div class="lc-val num" id="hc-fc">—</div></div>
+      </div>
+      </div>
+      <div class="modal-foot">
         <button class="btn primary" onclick="saveRecete()" style="flex:1">Kaydet</button>
         <button class="btn" onclick="document.getElementById('r-modal').style.display='none'">İptal</button>
       </div>
@@ -807,17 +1033,21 @@ function renderRMList(){
     c.innerHTML=rMalzemeler.map((rm,i)=>{
       const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);
       const sat=m&&m.son_fiyat>0&&rm.miktar>0?m.son_fiyat*rm.miktar:0;
-      return `<div class="row-line">
-        <div style="flex:2">
-          <select onchange="updRM(${i},'malzeme_id',this.value)">
-            <option value="">Malzeme seç...</option>
-            ${DB.malzeme.map(x=>`<option value="${x.id}" ${rm.malzeme_id===x.id?'selected':''}>${x.ad}${x.marka?' ('+x.marka+')':''} — ${fmtTL(x.son_fiyat)}/${x.birim}</option>`).join('')}
-          </select>
+      const secili=m?`${m.ad}${m.marka?' ('+m.marka+')':''}`:'';
+      return `<div class="ing-row">
+        <div class="combo" style="flex:2">
+          <input class="combo-input" id="rm-search-${i}" placeholder="Malzeme ara..." value="${secili.replace(/"/g,'&quot;')}"
+            autocomplete="off"
+            onfocus="openCombo('rm',${i})"
+            oninput="filterCombo('rm',${i},this.value)"
+            onkeydown="comboKey(event,'rm',${i})">
+          <div class="combo-list" id="rm-list-${i}" style="display:none"></div>
         </div>
-        <div style="max-width:90px"><input type="number" step="0.001" value="${rm.miktar||''}" placeholder="Miktar" oninput="updRM(${i},'miktar',parseFloat(this.value)||0)"></div>
-        <div style="min-width:36px;font-size:12px;color:var(--text2);padding:9px 4px">${m?m.birim:''}</div>
-        <div style="min-width:64px;font-size:12px;padding:9px 4px;color:var(--text)">${sat>0?fmtTL(sat):''}</div>
-        <button class="btn sm danger" onclick="remRM(${i})">✕</button>
+        <input class="qty" type="number" step="0.001" inputmode="decimal" value="${rm.miktar||''}" placeholder="0"
+          oninput="rMalzemeler[${i}].miktar=parseFloat(this.value)||0;onQtyChange('rm',${i})">
+        <span class="unit" id="rm-unit-${i}">${m?m.birim:''}</span>
+        <span class="line-total" id="rm-total-${i}">${sat>0?fmtTL(sat):''}</span>
+        <button class="btn sm danger" onclick="remRM(${i})" tabindex="-1">✕</button>
       </div>`;
     }).join('');
   }
@@ -827,54 +1057,164 @@ function renderRMList(){
 
 function renderARList(){
   const c=document.getElementById('ar-list');if(!c)return;
-  const editId=document.getElementById('r-id').value;
-  // Seçilebilir alt reçeteler: kendisi hariç tüm reçeteler
-  const secilebilir=DB.recete.filter(x=>x.id!==editId);
   if(!rAltReceteler.length){c.innerHTML=`<p style="font-size:12px;color:var(--text2);padding:6px 0">Alt reçete yok.</p>`;return;}
   c.innerHTML=rAltReceteler.map((ar,i)=>{
     const sub=DB.recete.find(x=>x.id===ar.recete_id);
     const bm=sub?birimMaliyet(sub):0;
     const sat=bm>0&&ar.miktar>0?bm*ar.miktar:0;
-    return `<div class="row-line">
-      <div style="flex:2">
-        <select onchange="updAR(${i},'recete_id',this.value)">
-          <option value="">Alt reçete seç...</option>
-          ${secilebilir.map(x=>`<option value="${x.id}" ${ar.recete_id===x.id?'selected':''}>${x.ad} — ${fmtTL(birimMaliyet(x))}/${x.birim||'porsiyon'}</option>`).join('')}
-        </select>
+    const secili=sub?sub.ad:'';
+    return `<div class="ing-row">
+      <div class="combo" style="flex:2">
+        <input class="combo-input" id="ar-search-${i}" placeholder="Alt reçete ara..." value="${secili.replace(/"/g,'&quot;')}"
+          autocomplete="off"
+          onfocus="openCombo('ar',${i})"
+          oninput="filterCombo('ar',${i},this.value)"
+          onkeydown="comboKey(event,'ar',${i})">
+        <div class="combo-list" id="ar-list-${i}" style="display:none"></div>
       </div>
-      <div style="max-width:90px"><input type="number" step="0.001" value="${ar.miktar||''}" placeholder="Miktar" oninput="updAR(${i},'miktar',parseFloat(this.value)||0)"></div>
-      <div style="min-width:36px;font-size:12px;color:var(--text2);padding:9px 4px">${sub?(sub.birim||'por'):''}</div>
-      <div style="min-width:64px;font-size:12px;padding:9px 4px;color:var(--text)">${sat>0?fmtTL(sat):''}</div>
-      <button class="btn sm danger" onclick="remAR(${i})">✕</button>
+      <input class="qty" type="number" step="0.001" inputmode="decimal" value="${ar.miktar||''}" placeholder="0"
+        oninput="rAltReceteler[${i}].miktar=parseFloat(this.value)||0;onQtyChange('ar',${i})">
+      <span class="unit" id="ar-unit-${i}">${sub?(sub.birim||'por'):''}</span>
+      <span class="line-total" id="ar-total-${i}">${sat>0?fmtTL(sat):''}</span>
+      <button class="btn sm danger" onclick="remAR(${i})" tabindex="-1">✕</button>
     </div>`;
   }).join('');
 }
+
+/* Combobox seçenek havuzu */
+function comboOptions(type,idx){
+  if(type==='rm'){
+    return DB.malzeme.map(x=>({id:x.id,label:`${x.ad}${x.marka?' ('+x.marka+')':''}`,sub:`${fmtTL(x.son_fiyat)}/${x.birim}`}));
+  } else {
+    const editId=document.getElementById('r-id').value;
+    return DB.recete.filter(x=>x.id!==editId).map(x=>({id:x.id,label:x.ad,sub:`${fmtTL(birimMaliyet(x))}/${x.birim||'porsiyon'}`}));
+  }
+}
+
+let _comboFilter={};
+
+function openCombo(type,idx){
+  filterCombo(type,idx,'__ALL__');
+}
+
+function filterCombo(type,idx,q){
+  // Input tamamen boşaltıldıysa seçimi temizle
+  if(q!=='__ALL__'&&q.trim()===''){
+    if(type==='rm')rMalzemeler[idx].malzeme_id='';
+    else rAltReceteler[idx].recete_id='';
+    const unitEl=document.getElementById(`${type}-unit-${idx}`);if(unitEl)unitEl.textContent='';
+    onQtyChange(type,idx);
+  }
+  const listEl=document.getElementById(`${type}-list-${idx}`);
+  if(!listEl)return;
+  const all=comboOptions(type,idx);
+  const query=(q==='__ALL__'?'':q).toLocaleLowerCase('tr');
+  const filtered=query?all.filter(o=>o.label.toLocaleLowerCase('tr').includes(query)):all;
+  _comboFilter[`${type}-${idx}`]=filtered;
+  if(!filtered.length){
+    listEl.innerHTML=`<div class="combo-empty">Sonuç yok</div>`;
+  } else {
+    listEl.innerHTML=filtered.slice(0,50).map((o,j)=>
+      `<div class="combo-item" data-j="${j}" onmousedown="pickCombo('${type}',${idx},'${o.id}')">
+        <span>${o.label}</span><span class="combo-sub">${o.sub}</span>
+      </div>`
+    ).join('');
+  }
+  listEl.style.display='block';
+}
+
+function pickCombo(type,idx,id){
+  if(type==='rm'){rMalzemeler[idx].malzeme_id=id;}
+  else{rAltReceteler[idx].recete_id=id;}
+  const listEl=document.getElementById(`${type}-list-${idx}`);
+  if(listEl)listEl.style.display='none';
+  // input değerini ve birim/total'ı güncelle (tüm listeyi yeniden çizmeden)
+  const arr=type==='rm'?rMalzemeler:rAltReceteler;
+  const obj=type==='rm'?DB.malzeme.find(x=>x.id===id):DB.recete.find(x=>x.id===id);
+  const inp=document.getElementById(`${type}-search-${idx}`);
+  if(inp&&obj)inp.value=type==='rm'?`${obj.ad}${obj.marka?' ('+obj.marka+')':''}`:obj.ad;
+  const unitEl=document.getElementById(`${type}-unit-${idx}`);
+  if(unitEl&&obj)unitEl.textContent=type==='rm'?obj.birim:(obj.birim||'por');
+  onQtyChange(type,idx);
+}
+
+function comboKey(e,type,idx){
+  if(e.key==='Escape'){
+    const listEl=document.getElementById(`${type}-list-${idx}`);
+    if(listEl)listEl.style.display='none';
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    const f=_comboFilter[`${type}-${idx}`];
+    if(f&&f.length===1)pickCombo(type,idx,f[0].id);
+  }
+}
+
+/* Miktar veya seçim değişince: sadece o satırın toplamını ve özeti güncelle, yeniden çizme YOK */
+function onQtyChange(type,idx){
+  if(type==='rm'){
+    const rm=rMalzemeler[idx];
+    const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);
+    const sat=m&&m.son_fiyat>0&&rm.miktar>0?m.son_fiyat*rm.miktar:0;
+    const el=document.getElementById(`rm-total-${idx}`);if(el)el.textContent=sat>0?fmtTL(sat):'';
+  } else {
+    const ar=rAltReceteler[idx];
+    const sub=DB.recete.find(x=>x.id===ar.recete_id);
+    const sat=sub&&ar.miktar>0?birimMaliyet(sub)*ar.miktar:0;
+    const el=document.getElementById(`ar-total-${idx}`);if(el)el.textContent=sat>0?fmtTL(sat):'';
+  }
+  guncellePreview();
+}
+
+/* Dışarı tıklayınca açık dropdownları kapat */
+document.addEventListener('mousedown',function(e){
+  if(!e.target.closest('.combo')){
+    document.querySelectorAll('.combo-list').forEach(el=>el.style.display='none');
+  }
+});
 
 function guncellePreview(){
   let t=0;
   rMalzemeler.forEach(rm=>{const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);if(m&&m.son_fiyat>0&&rm.miktar>0)t+=m.son_fiyat*rm.miktar;});
   rAltReceteler.forEach(ar=>{const sub=DB.recete.find(x=>x.id===ar.recete_id);if(sub&&ar.miktar>0)t+=birimMaliyet(sub)*ar.miktar;});
   const pors=parseFloat(document.getElementById('r-pors').value)||1;
+  const birim=document.getElementById('r-birim').value||'porsiyon';
+  const bm=t/pors;
   const pv=document.getElementById('r-prev');
   if(pv){
     pv.style.display='block';
     document.getElementById('r-prev-val').textContent=fmtTL(t);
-    document.getElementById('r-prev-birim').textContent=fmtTL(t/pors)+' / '+(document.getElementById('r-birim').value||'porsiyon');
+    document.getElementById('r-prev-birim').textContent=fmtTL(bm)+' / '+birim;
+  }
+  // Hedef fiyat canlı hesabı
+  const hedefEl=document.getElementById('r-hedef');
+  const calc=document.getElementById('r-hedef-calc');
+  const hedef=parseFloat(hedefEl?hedefEl.value:0)||0;
+  if(calc){
+    if(hedef>0){
+      const kar=hedef-bm;
+      const fc=(bm/hedef)*100;
+      calc.style.display='grid';
+      document.getElementById('hc-mc').textContent=fmtTL(bm);
+      const karEl=document.getElementById('hc-kar');
+      karEl.textContent=fmtTL(kar);karEl.className='lc-val num '+(kar>=0?'cost-ok':'cost-bad');
+      const fcEl=document.getElementById('hc-fc');
+      fcEl.textContent='%'+fmt(fc,1);fcEl.className='lc-val num '+costColor(fc);
+    } else {
+      calc.style.display='none';
+    }
   }
 }
 
-function updRM(i,k,v){if(rMalzemeler[i])rMalzemeler[i][k]=v;renderRMList();}
-function addRM(){rMalzemeler.push({malzeme_id:'',miktar:0});renderRMList();}
+function addRM(){rMalzemeler.push({malzeme_id:'',miktar:0});renderRMList();setTimeout(()=>{const el=document.getElementById('rm-search-'+(rMalzemeler.length-1));if(el)el.focus();},20);}
 function remRM(i){rMalzemeler.splice(i,1);renderRMList();}
-function updAR(i,k,v){if(rAltReceteler[i])rAltReceteler[i][k]=v;renderRMList();}
-function addAR(){rAltReceteler.push({recete_id:'',miktar:0});renderRMList();}
+function addAR(){rAltReceteler.push({recete_id:'',miktar:0});renderRMList();setTimeout(()=>{const el=document.getElementById('ar-search-'+(rAltReceteler.length-1));if(el)el.focus();},20);}
 function remAR(i){rAltReceteler.splice(i,1);renderRMList();}
 
 function openAddRecete(){
   rMalzemeler=[];rAltReceteler=[];render();
   setTimeout(()=>{
     document.getElementById('r-title').textContent='Reçete Ekle';
-    ['r-id','r-ad'].forEach(id=>document.getElementById(id).value='');
+    ['r-id','r-ad','r-hedef'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('r-pors').value='1';
     document.getElementById('r-birim').value='porsiyon';
     document.getElementById('r-kat').value='';
@@ -895,9 +1235,28 @@ function editRecete(id){
     document.getElementById('r-pors').value=r.porsiyon||1;
     document.getElementById('r-birim').value=r.birim||'porsiyon';
     document.getElementById('r-kat').value=r.kategori||'';
+    // Menüde bağlı fiyat varsa hedef olarak göster
+    const mi=DB.menu_items.find(m=>m.recete_id===r.id);
+    document.getElementById('r-hedef').value=mi&&mi.fiyat?mi.fiyat:'';
     renderRMList();
     document.getElementById('r-modal').style.display='flex';
   },10);
+}
+
+function kopyalaRecete(id){
+  const r=DB.recete.find(x=>x.id===id);if(!r)return;
+  const kopya={
+    id:uid(),
+    ad:r.ad+' (kopya)',
+    porsiyon:r.porsiyon||1,
+    birim:r.birim||'porsiyon',
+    kategori:r.kategori||'',
+    malzemeler:(r.malzemeler||[]).map(rm=>({...rm})),
+    alt_receteler:(r.alt_receteler||[]).map(ar=>({...ar}))
+  };
+  DB.recete.push(kopya);
+  saveDB();render();
+  setTimeout(()=>editRecete(kopya.id),100);
 }
 
 function saveRecete(){
@@ -961,8 +1320,9 @@ function renderMenu(){
     </table></div>`;
 
   return `<div class="page active">
+    <div class="page-head"><h2>Menü & Fiyat</h2><p>Satış fiyatları ve canlı karlılık analizi</p></div>
     <div class="section-hd">
-      <div><h2 style="font-size:18px;font-weight:600">Menü & Fiyat</h2><p style="color:var(--text2);font-size:13px;margin-top:2px">Karlılık analizi</p></div>
+      <div></div>
       <button class="btn primary" onclick="openAddMI()">+ Ürün Ekle</button>
     </div>
     ${rows}
@@ -973,8 +1333,10 @@ function renderMenu(){
 function renderMIModal(){
   return `<div id="mi-modal" class="modal-bg" style="display:none">
     <div class="modal">
-      <button class="modal-close" onclick="document.getElementById('mi-modal').style.display='none'">×</button>
-      <h3 id="mi-title">Menü Ürünü Ekle</h3>
+      <div class="modal-head"><h3 id="mi-title">Menü Ürünü Ekle</h3>
+        <button class="modal-close" onclick="document.getElementById('mi-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
       <input type="hidden" id="mi-id">
       <label>Menüdeki adı *</label><input id="mi-ad" placeholder="Örn: Levrek Izgara">
       <label>Bağlı reçete</label>
@@ -986,14 +1348,13 @@ function renderMIModal(){
       <select id="mi-kat"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>İçecek</option><option>Pizza</option><option>Diğer</option></select>
       <label>Satış fiyatı (₺) *</label>
       <input id="mi-fiyat" type="number" step="0.01" placeholder="0.00" oninput="previewMI()">
-      <div id="mi-prev" style="display:none;margin-top:14px;padding:14px;background:var(--bg2);border-radius:var(--radius-sm)">
-        <div class="grid3">
-          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Maliyet</div><strong id="mi-mc">—</strong></div>
-          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Kar</div><strong id="mi-kar">—</strong></div>
-          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Food Cost</div><strong id="mi-pct">—</strong></div>
-        </div>
+      <div id="mi-prev" class="live-calc" style="display:none">
+        <div><div class="lc-lbl">Maliyet</div><div class="lc-val num" id="mi-mc">—</div></div>
+        <div><div class="lc-lbl">Kar</div><div class="lc-val num" id="mi-kar">—</div></div>
+        <div><div class="lc-lbl">Food cost</div><div class="lc-val num" id="mi-pct">—</div></div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:20px">
+      </div>
+      <div class="modal-foot">
         <button class="btn primary" onclick="saveMI()" style="flex:1">Kaydet</button>
         <button class="btn" onclick="document.getElementById('mi-modal').style.display='none'">İptal</button>
       </div>
@@ -1009,10 +1370,10 @@ function previewMI(){
   const r=DB.recete.find(x=>x.id===rid);if(!r){if(pv)pv.style.display='none';return;}
   const mc=hesapla(r);const kar=fiyat-mc;const pct=(mc/fiyat)*100;
   if(pv){
-    pv.style.display='block';
+    pv.style.display='grid';
     document.getElementById('mi-mc').textContent=fmtTL(mc);
-    document.getElementById('mi-kar').innerHTML=`<span class="${kar>=0?'cost-ok':'cost-bad'}">${fmtTL(kar)}</span>`;
-    document.getElementById('mi-pct').innerHTML=`<span class="${costColor(pct)}">%${fmt(pct,1)}</span>`;
+    const k=document.getElementById('mi-kar');k.textContent=fmtTL(kar);k.className='lc-val num '+(kar>=0?'cost-ok':'cost-bad');
+    const p=document.getElementById('mi-pct');p.textContent='%'+fmt(pct,1);p.className='lc-val num '+costColor(pct);
   }
 }
 
