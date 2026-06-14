@@ -150,12 +150,32 @@ function fmt(n,d=2){return Number(n||0).toLocaleString('tr-TR',{minimumFractionD
 function fmtTL(n){return '₺'+fmt(n);}
 function costColor(p){return p<=32?'cost-ok':p<=40?'cost-warn':'cost-bad';}
 function costBadge(p){return p<=32?'ok':p<=40?'warn':'bad';}
-function hesapla(r){
-  if(!r||!r.malzemeler)return 0;
-  return r.malzemeler.reduce((s,rm)=>{
+function hesapla(r,_seen){
+  if(!r)return 0;
+  _seen=_seen||{};
+  if(_seen[r.id])return 0; // sonsuz döngü koruması
+  _seen[r.id]=true;
+  let toplam=0;
+  (r.malzemeler||[]).forEach(rm=>{
     const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);
-    return s+(m&&m.son_fiyat>0?m.son_fiyat*rm.miktar:0);
-  },0);
+    if(m&&m.son_fiyat>0)toplam+=m.son_fiyat*rm.miktar;
+  });
+  (r.alt_receteler||[]).forEach(ar=>{
+    const sub=DB.recete.find(x=>x.id===ar.recete_id);
+    if(sub){
+      const subToplam=hesapla(sub,{..._seen});
+      const subPorsiyon=sub.porsiyon||1;
+      // alt reçetenin birim maliyeti × kullanılan miktar
+      toplam+=(subToplam/subPorsiyon)*ar.miktar;
+    }
+  });
+  return toplam;
+}
+
+// Bir reçetenin tek porsiyon/birim maliyeti
+function birimMaliyet(r){
+  if(!r)return 0;
+  return hesapla(r)/(r.porsiyon||1);
 }
 
 function renderNav(){
@@ -692,28 +712,36 @@ function deleteMalzeme(id){
 
 /* ── REÇETE ── */
 let rMalzemeler=[];
+let rAltReceteler=[];
 
 function renderRecete(){
   const cards=DB.recete.length===0
     ?`<div class="empty"><svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Henüz reçete eklenmedi</div>`
     :DB.recete.map(r=>{
       const mc=hesapla(r);
+      const bm=birimMaliyet(r);
       const mi=DB.menu_items.find(m=>m.recete_id===r.id);
       const pct=mi&&mi.fiyat>0?(mc/mi.fiyat)*100:null;
+      const altSayisi=(r.alt_receteler||[]).length;
+      const altRecepteMi=DB.recete.some(x=>(x.alt_receteler||[]).some(a=>a.recete_id===r.id));
       return `<div class="card">
         <div class="section-hd" style="margin-bottom:6px">
           <div>
             <strong style="font-size:15px">${r.ad}</strong>
-            <span style="font-size:12px;color:var(--text2);margin-left:8px">${r.kategori||''} · ${r.porsiyon||1} porsiyon</span>
+            ${altRecepteMi?'<span class="badge info" style="margin-left:6px">alt reçete</span>':''}
+            <span style="font-size:12px;color:var(--text2);margin-left:8px">${r.kategori||''} · ${fmt(r.porsiyon||1,2)} ${r.birim||'porsiyon'}</span>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             ${pct!==null?`<span class="badge ${costBadge(pct)}">%${fmt(pct,1)} food cost</span>`:''}
-            <strong>${fmtTL(mc)}</strong>
+            <div style="text-align:right">
+              <strong>${fmtTL(mc)}</strong>
+              <div style="font-size:11px;color:var(--text2)">${fmtTL(bm)}/${r.birim||'porsiyon'}</div>
+            </div>
             <button class="btn sm" onclick="editRecete('${r.id}')">Düzenle</button>
             <button class="btn sm danger" onclick="deleteRecete('${r.id}')">Sil</button>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--text2)">${(r.malzemeler||[]).length} malzeme</div>
+        <div style="font-size:12px;color:var(--text2)">${(r.malzemeler||[]).length} malzeme${altSayisi>0?' · '+altSayisi+' alt reçete':''}</div>
         ${pct!==null?`<div class="cost-bar-bg"><div class="cost-bar" style="width:${Math.min(pct,100)}%;background:${pct<=32?'var(--green)':pct<=40?'var(--amber)':'var(--red)'}"></div></div>`:''}
       </div>`;
     }).join('');
@@ -736,16 +764,33 @@ function renderReceteModal(){
       <input type="hidden" id="r-id">
       <label>Reçete adı *</label><input id="r-ad" placeholder="Örn: Levrek Izgara">
       <div class="grid2">
-        <div><label>Porsiyon sayısı</label><input id="r-pors" type="number" value="1" min="1"></div>
+        <div>
+          <label>Bu reçete ne kadar üretiyor?</label>
+          <div style="display:flex;gap:6px">
+            <input id="r-pors" type="number" step="0.001" value="1" min="0" style="flex:1" oninput="renderRMList()">
+            <select id="r-birim" style="max-width:90px" onchange="renderRMList()">
+              <option value="porsiyon">porsiyon</option><option value="kg">kg</option><option value="lt">lt</option><option value="gr">gr</option><option value="ml">ml</option><option value="adet">adet</option>
+            </select>
+          </div>
+        </div>
         <div><label>Kategori</label>
-        <select id="r-kat"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>İçecek</option><option>Pizza</option><option>Diğer</option></select></div>
+        <select id="r-kat"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>İçecek</option><option>Pizza</option><option>Sos & Harç (alt reçete)</option><option>Diğer</option></select></div>
       </div>
+
       <hr class="sep">
       <strong style="font-size:13px">Malzemeler</strong>
       <div id="rm-list" style="margin-top:8px"></div>
       <button class="btn" onclick="addRM()" style="margin-top:8px;width:100%">+ Malzeme Ekle</button>
-      <div id="r-prev" style="display:none;margin-top:14px;padding:12px;background:var(--bg2);border-radius:var(--radius-sm);font-size:13px">
-        Tahmini maliyet: <strong id="r-prev-val">₺0,00</strong>
+
+      <div style="margin-top:16px"><strong style="font-size:13px">Alt Reçeteler</strong> <span style="font-size:12px;color:var(--text2)">(sos, harç, baz vb.)</span></div>
+      <div id="ar-list" style="margin-top:8px"></div>
+      <button class="btn" onclick="addAR()" style="margin-top:8px;width:100%">+ Alt Reçete Ekle</button>
+
+      <div id="r-prev" style="display:none;margin-top:16px;padding:14px;background:var(--bg2);border-radius:var(--radius-sm)">
+        <div class="grid2">
+          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Toplam maliyet</div><strong id="r-prev-val">₺0,00</strong></div>
+          <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Birim maliyet</div><strong id="r-prev-birim">₺0,00</strong></div>
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:20px">
         <button class="btn primary" onclick="saveRecete()" style="flex:1">Kaydet</button>
@@ -757,38 +802,81 @@ function renderReceteModal(){
 
 function renderRMList(){
   const c=document.getElementById('rm-list');if(!c)return;
-  if(!rMalzemeler.length){c.innerHTML=`<p style="font-size:12px;color:var(--text2);padding:6px 0">Henüz malzeme eklenmedi.</p>`;return;}
-  c.innerHTML=rMalzemeler.map((rm,i)=>{
-    const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);
-    const sat=m&&m.son_fiyat>0&&rm.miktar>0?m.son_fiyat*rm.miktar:0;
+  if(!rMalzemeler.length){c.innerHTML=`<p style="font-size:12px;color:var(--text2);padding:6px 0">Henüz malzeme eklenmedi.</p>`;}
+  else{
+    c.innerHTML=rMalzemeler.map((rm,i)=>{
+      const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);
+      const sat=m&&m.son_fiyat>0&&rm.miktar>0?m.son_fiyat*rm.miktar:0;
+      return `<div class="row-line">
+        <div style="flex:2">
+          <select onchange="updRM(${i},'malzeme_id',this.value)">
+            <option value="">Malzeme seç...</option>
+            ${DB.malzeme.map(x=>`<option value="${x.id}" ${rm.malzeme_id===x.id?'selected':''}>${x.ad}${x.marka?' ('+x.marka+')':''} — ${fmtTL(x.son_fiyat)}/${x.birim}</option>`).join('')}
+          </select>
+        </div>
+        <div style="max-width:90px"><input type="number" step="0.001" value="${rm.miktar||''}" placeholder="Miktar" oninput="updRM(${i},'miktar',parseFloat(this.value)||0)"></div>
+        <div style="min-width:36px;font-size:12px;color:var(--text2);padding:9px 4px">${m?m.birim:''}</div>
+        <div style="min-width:64px;font-size:12px;padding:9px 4px;color:var(--text)">${sat>0?fmtTL(sat):''}</div>
+        <button class="btn sm danger" onclick="remRM(${i})">✕</button>
+      </div>`;
+    }).join('');
+  }
+  renderARList();
+  guncellePreview();
+}
+
+function renderARList(){
+  const c=document.getElementById('ar-list');if(!c)return;
+  const editId=document.getElementById('r-id').value;
+  // Seçilebilir alt reçeteler: kendisi hariç tüm reçeteler
+  const secilebilir=DB.recete.filter(x=>x.id!==editId);
+  if(!rAltReceteler.length){c.innerHTML=`<p style="font-size:12px;color:var(--text2);padding:6px 0">Alt reçete yok.</p>`;return;}
+  c.innerHTML=rAltReceteler.map((ar,i)=>{
+    const sub=DB.recete.find(x=>x.id===ar.recete_id);
+    const bm=sub?birimMaliyet(sub):0;
+    const sat=bm>0&&ar.miktar>0?bm*ar.miktar:0;
     return `<div class="row-line">
       <div style="flex:2">
-        <select onchange="updRM(${i},'malzeme_id',this.value)">
-          <option value="">Malzeme seç...</option>
-          ${DB.malzeme.map(x=>`<option value="${x.id}" ${rm.malzeme_id===x.id?'selected':''}>${x.ad}${x.marka?' ('+x.marka+')':''} — ${fmtTL(x.son_fiyat)}/${x.birim}</option>`).join('')}
+        <select onchange="updAR(${i},'recete_id',this.value)">
+          <option value="">Alt reçete seç...</option>
+          ${secilebilir.map(x=>`<option value="${x.id}" ${ar.recete_id===x.id?'selected':''}>${x.ad} — ${fmtTL(birimMaliyet(x))}/${x.birim||'porsiyon'}</option>`).join('')}
         </select>
       </div>
-      <div style="max-width:90px"><input type="number" step="0.001" value="${rm.miktar||''}" placeholder="Miktar" oninput="updRM(${i},'miktar',parseFloat(this.value)||0)"></div>
-      <div style="min-width:36px;font-size:12px;color:var(--text2);padding:9px 4px">${m?m.birim:''}</div>
+      <div style="max-width:90px"><input type="number" step="0.001" value="${ar.miktar||''}" placeholder="Miktar" oninput="updAR(${i},'miktar',parseFloat(this.value)||0)"></div>
+      <div style="min-width:36px;font-size:12px;color:var(--text2);padding:9px 4px">${sub?(sub.birim||'por'):''}</div>
       <div style="min-width:64px;font-size:12px;padding:9px 4px;color:var(--text)">${sat>0?fmtTL(sat):''}</div>
-      <button class="btn sm danger" onclick="remRM(${i})">✕</button>
+      <button class="btn sm danger" onclick="remAR(${i})">✕</button>
     </div>`;
   }).join('');
-  const t=rMalzemeler.reduce((s,rm)=>{const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);return s+(m&&m.son_fiyat>0&&rm.miktar>0?m.son_fiyat*rm.miktar:0);},0);
-  const pv=document.getElementById('r-prev');const pval=document.getElementById('r-prev-val');
-  if(pv&&pval){pv.style.display='block';pval.textContent=fmtTL(t);}
+}
+
+function guncellePreview(){
+  let t=0;
+  rMalzemeler.forEach(rm=>{const m=DB.malzeme.find(x=>x.id===rm.malzeme_id);if(m&&m.son_fiyat>0&&rm.miktar>0)t+=m.son_fiyat*rm.miktar;});
+  rAltReceteler.forEach(ar=>{const sub=DB.recete.find(x=>x.id===ar.recete_id);if(sub&&ar.miktar>0)t+=birimMaliyet(sub)*ar.miktar;});
+  const pors=parseFloat(document.getElementById('r-pors').value)||1;
+  const pv=document.getElementById('r-prev');
+  if(pv){
+    pv.style.display='block';
+    document.getElementById('r-prev-val').textContent=fmtTL(t);
+    document.getElementById('r-prev-birim').textContent=fmtTL(t/pors)+' / '+(document.getElementById('r-birim').value||'porsiyon');
+  }
 }
 
 function updRM(i,k,v){if(rMalzemeler[i])rMalzemeler[i][k]=v;renderRMList();}
 function addRM(){rMalzemeler.push({malzeme_id:'',miktar:0});renderRMList();}
 function remRM(i){rMalzemeler.splice(i,1);renderRMList();}
+function updAR(i,k,v){if(rAltReceteler[i])rAltReceteler[i][k]=v;renderRMList();}
+function addAR(){rAltReceteler.push({recete_id:'',miktar:0});renderRMList();}
+function remAR(i){rAltReceteler.splice(i,1);renderRMList();}
 
 function openAddRecete(){
-  rMalzemeler=[];render();
+  rMalzemeler=[];rAltReceteler=[];render();
   setTimeout(()=>{
     document.getElementById('r-title').textContent='Reçete Ekle';
     ['r-id','r-ad'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('r-pors').value='1';
+    document.getElementById('r-birim').value='porsiyon';
     document.getElementById('r-kat').value='';
     renderRMList();
     document.getElementById('r-modal').style.display='flex';
@@ -798,12 +886,14 @@ function openAddRecete(){
 function editRecete(id){
   const r=DB.recete.find(x=>x.id===id);if(!r)return;
   rMalzemeler=(r.malzemeler||[]).map(rm=>({...rm}));
+  rAltReceteler=(r.alt_receteler||[]).map(ar=>({...ar}));
   render();
   setTimeout(()=>{
     document.getElementById('r-title').textContent='Reçete Düzenle';
     document.getElementById('r-id').value=r.id;
     document.getElementById('r-ad').value=r.ad;
     document.getElementById('r-pors').value=r.porsiyon||1;
+    document.getElementById('r-birim').value=r.birim||'porsiyon';
     document.getElementById('r-kat').value=r.kategori||'';
     renderRMList();
     document.getElementById('r-modal').style.display='flex';
@@ -815,7 +905,15 @@ function saveRecete(){
   const ad=document.getElementById('r-ad').value.trim();
   if(!ad){alert('Reçete adı zorunlu.');return;}
   const malzemeler=rMalzemeler.filter(rm=>rm.malzeme_id&&rm.miktar>0).map(rm=>({malzeme_id:rm.malzeme_id,miktar:rm.miktar}));
-  const obj={ad,porsiyon:parseInt(document.getElementById('r-pors').value)||1,kategori:document.getElementById('r-kat').value,malzemeler};
+  const alt_receteler=rAltReceteler.filter(ar=>ar.recete_id&&ar.miktar>0).map(ar=>({recete_id:ar.recete_id,miktar:ar.miktar}));
+  const obj={
+    ad,
+    porsiyon:parseFloat(document.getElementById('r-pors').value)||1,
+    birim:document.getElementById('r-birim').value||'porsiyon',
+    kategori:document.getElementById('r-kat').value,
+    malzemeler,
+    alt_receteler
+  };
   if(id){const r=DB.recete.find(x=>x.id===id);if(r)Object.assign(r,obj);}
   else DB.recete.push({id:uid(),...obj});
   saveDB();
@@ -824,7 +922,13 @@ function saveRecete(){
 }
 
 function deleteRecete(id){
-  if(!confirm('Reçeteyi sil?'))return;
+  const kullananlar=DB.recete.filter(x=>(x.alt_receteler||[]).some(a=>a.recete_id===id));
+  if(kullananlar.length){
+    if(!confirm(`Bu reçete ${kullananlar.length} başka reçetede alt reçete olarak kullanılıyor (${kullananlar.map(x=>x.ad).join(', ')}). Yine de silmek istiyor musun? O reçetelerden de çıkarılacak.`))return;
+    DB.recete.forEach(x=>{if(x.alt_receteler)x.alt_receteler=x.alt_receteler.filter(a=>a.recete_id!==id);});
+  } else {
+    if(!confirm('Reçeteyi sil?'))return;
+  }
   DB.recete=DB.recete.filter(x=>x.id!==id);
   DB.menu_items=DB.menu_items.filter(x=>x.recete_id!==id);
   saveDB();render();
