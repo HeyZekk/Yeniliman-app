@@ -586,34 +586,49 @@ function gosterOnay(parsed){
   _pendingFatura=parsed;
   const alan=document.getElementById('onay-alan');
 
+  // Gıda malzemelerini eşleştirme havuzu olarak hazırla (sarf hariç)
+  const malzemeSecenekleri=DB.malzeme.map(m=>`<option value="${m.id}">${m.ad}${m.marka?' ('+m.marka+')':''}</option>`).join('');
+
   const kalemHTML=(parsed.kalemler||[]).map((k,i)=>{
-    const esl=eslestir(k.temiz_ad,k.marka,k.fatura_adi);
+    const r=eslestirGuvenli(k.temiz_ad,k.marka,k.fatura_adi);
     const sarfMi=(k.kategori==='sarf');
-    return `<div class="onay-kalem">
+    // Her kaleme varsayılan seçim ata: kesin→o malzeme, şüpheli→o malzeme (ama uyarı), yok→yeni
+    const seciliId=r.malzeme?r.malzeme.id:'__yeni__';
+
+    let durumBadge='';
+    if(r.guven==='kesin')durumBadge=`<span class="badge ok">otomatik eşleşti</span>`;
+    else if(r.guven==='supheli')durumBadge=`<span class="badge warn">kontrol et</span>`;
+    else durumBadge=`<span class="badge info">yeni malzeme</span>`;
+
+    return `<div class="onay-kalem" style="flex-wrap:wrap">
       <input type="checkbox" id="cb-${i}" ${sarfMi?'':'checked'}>
       <div class="kd">
         <strong>${k.temiz_ad||k.fatura_adi}${k.marka?' · '+k.marka:''} ${sarfMi?'<span class="badge warn" style="margin-left:4px">sarf</span>':''}</strong>
-        <span>${fmt(k.net_miktar,2)} ${k.temel_birim} · <strong style="color:var(--text)">${fmtTL(k.birim_fiyat_temel||0)}/${k.temel_birim}</strong> <span style="color:var(--ink3)">KDV hariç${k.kdv_oran!=null?' · KDV %'+k.kdv_oran:''}</span> · <span style="color:var(--text3)">${k.fatura_adi}</span></span>
+        <span>${fmt(k.net_miktar,2)} ${k.temel_birim} · <strong style="color:var(--ink)">${fmtTL(k.birim_fiyat_temel||0)}/${k.temel_birim}</strong> <span style="color:var(--ink3)">KDV hariç${k.kdv_oran!=null?' · %'+k.kdv_oran:''}</span></span>
       </div>
-      ${esl
-        ?`<span class="badge ok">→ ${esl.ad}</span>`
-        :`<span class="badge info">yeni</span>`
-      }
+      ${durumBadge}
+      <div style="flex-basis:100%;margin-top:6px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--ink2);white-space:nowrap">Şuraya kaydet:</span>
+        <select id="esl-${i}" style="font-size:12px;padding:6px 8px" ${r.guven==='supheli'?'data-uyari="1"':''}>
+          <option value="__yeni__" ${seciliId==='__yeni__'?'selected':''}>+ Yeni malzeme olarak ekle</option>
+          ${DB.malzeme.map(m=>`<option value="${m.id}" ${seciliId===m.id?'selected':''}>${m.ad}${m.marka?' ('+m.marka+')':''}</option>`).join('')}
+        </select>
+      </div>
     </div>`;
   }).join('');
 
-  const gidaSayisi=(parsed.kalemler||[]).filter(k=>k.kategori!=='sarf').length;
-  const sarfSayisi=(parsed.kalemler||[]).filter(k=>k.kategori==='sarf').length;
+  const supheliSayisi=(parsed.kalemler||[]).filter(k=>eslestirGuvenli(k.temiz_ad,k.marka,k.fatura_adi).guven==='supheli').length;
 
   alan.innerHTML=`<div class="card">
     <div class="step"><div class="step-n">3</div><strong>Kalemleri onayla ve kaydet</strong></div>
     <div class="grid3" style="margin-bottom:16px">
-      <div class="metric"><div class="val" style="font-size:15px">${parsed.tedarikci||'—'}</div><div class="lbl">Tedarikçi</div></div>
-      <div class="metric"><div class="val" style="font-size:15px">${parsed.tarih||'—'}</div><div class="lbl">Tarih</div></div>
-      <div class="metric"><div class="val" style="font-size:15px">${fmtTL(parsed.toplam||0)}</div><div class="lbl">Toplam</div></div>
+      <div class="metric"><div class="val sm">${parsed.tedarikci||'—'}</div><div class="lbl">Tedarikçi</div></div>
+      <div class="metric"><div class="val sm">${parsed.tarih||'—'}</div><div class="lbl">Tarih</div></div>
+      <div class="metric"><div class="val sm">${fmtTL(parsed.toplam||0)}</div><div class="lbl">Toplam (KDV hariç)</div></div>
     </div>
-    <div class="info-box">${gidaSayisi} gıda malzemesi işaretli. ${sarfSayisi} sarf malzemesi (kömür, temizlik vb.) food cost'a girmesin diye işaretsiz — istersen elle işaretleyebilirsin.</div>
-    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:16px">
+    ${supheliSayisi>0?`<div class="warn-box">⚠️ ${supheliSayisi} kalemde "kontrol et" var. Bunlar mevcut bir malzemeye benziyor ama emin değilim (örn. "süzme yoğurt" ile "yoğurt", "dilimli kaşar" ile "kaşar"). Her birinin "Şuraya kaydet" menüsünden doğru malzemeyi seç veya yeni olarak ekle. Seçimin kalıcı öğrenilir, bir daha sorulmaz.</div>`:''}
+    <div class="info-box">Otomatik eşleşenler için bir şey yapmana gerek yok. Sarf malzemeler (kömür, temizlik) food cost'a girmesin diye işaretsiz.</div>
+    <div style="border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:16px">
       ${kalemHTML||'<div class="empty">Kalem bulunamadı</div>'}
     </div>
     <div style="display:flex;gap:8px">
@@ -625,21 +640,60 @@ function gosterOnay(parsed){
   alan.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-function eslestir(temizAd,marka,faturaAdi){
-  if(!temizAd&&!faturaAdi)return null;
-  const aday=[temizAd,faturaAdi].filter(Boolean).map(s=>s.toLowerCase().trim());
-  let best=null,bestScore=0;
+// Ad normalleştirme: marka, ambalaj, gramaj gibi gürültüyü temizle, anlamlı kelimeleri döndür
+const ESLESTIRME_GURULTU=new Set([
+  'metro','chef','prof','aro','mc','kg','gr','g','lt','ml','adet','paket','kutu','koli','lu','li','lı','lü',
+  've','ile','büyük','küçük','orta','no','x','ko','ko.','pk','ad','adt'
+]);
+function adKelimeleri(s){
+  if(!s)return [];
+  return s.toLowerCase()
+    .replace(/[.,;:/()]/g,' ')
+    .replace(/\d+([.,]\d+)?\s*(kg|gr|g|lt|ml|cl|li|lu|lı|lü)?/g,' ') // sayı + ölçü birimlerini at
+    .split(/\s+/)
+    .map(w=>w.trim())
+    .filter(w=>w.length>=2&&!ESLESTIRME_GURULTU.has(w));
+}
+
+// Eşleştirme: {malzeme, guven:'kesin'|'supheli'|'yok'} döndürür
+function eslestirGuvenli(temizAd,marka,faturaAdi){
+  if(!temizAd&&!faturaAdi)return {malzeme:null,guven:'yok'};
+  const adayKelimeler=adKelimeleri(temizAd).length?adKelimeleri(temizAd):adKelimeleri(faturaAdi);
+  const adayTam=(temizAd||faturaAdi||'').toLowerCase().trim();
+  const adaySet=new Set(adayKelimeler);
+  if(!adayKelimeler.length)return {malzeme:null,guven:'yok'};
+
+  let best=null,bestOran=0,bestTamOrtak=false;
   for(const m of DB.malzeme){
-    const adlar=[m.ad,m.marka,...(m.alternatif_adlar||[])].filter(Boolean).map(s=>s.toLowerCase());
-    for(const a of aday){
-      for(const ad of adlar){
-        if(a===ad){if(100>bestScore){bestScore=100;best=m;}}
-        else if(a.includes(ad)||ad.includes(a)){if(70>bestScore){bestScore=70;best=m;}}
-      }
-    }
-    if(bestScore===100)break;
+    // Birebir ad/alternatif eşleşmesi → KESİN (daha önce onaylanmış demektir)
+    const malzemeAdlari=[m.ad,...(m.alternatif_adlar||[])].filter(Boolean).map(s=>s.toLowerCase().trim());
+    if(malzemeAdlari.includes(adayTam))return {malzeme:m,guven:'kesin'};
+
+    const malzemeKelimeleri=new Set();
+    [m.ad,...(m.alternatif_adlar||[])].forEach(ad=>adKelimeleri(ad).forEach(w=>malzemeKelimeleri.add(w)));
+    if(!malzemeKelimeleri.size)continue;
+
+    const ortak=adayKelimeler.filter(w=>malzemeKelimeleri.has(w));
+    if(!ortak.length)continue;
+
+    const oran=ortak.length/Math.max(adayKelimeler.length,1);
+    // İki yönlü tam örtüşme: aday ve malzemenin kelime kümeleri birebir aynı mı?
+    const tersOran=ortak.length/malzemeKelimeleri.size;
+    const tamOrtak=(oran===1&&tersOran===1);
+    if(oran>=0.5&&oran>bestOran){bestOran=oran;best=m;bestTamOrtak=tamOrtak;}
   }
-  return bestScore>=70?best:null;
+
+  if(!best)return {malzeme:null,guven:'yok'};
+  // Kelime kümeleri birebir aynıysa kesin; değilse (biri diğerini içeriyor, ek kelime var) şüpheli
+  if(bestTamOrtak)return {malzeme:best,guven:'kesin'};
+  if(bestOran>=0.5)return {malzeme:best,guven:'supheli'};
+  return {malzeme:null,guven:'yok'};
+}
+
+// Geriye dönük uyumluluk için eski imza (fiyat değişimi tespitinde kullanılıyor)
+function eslestir(temizAd,marka,faturaAdi){
+  const r=eslestirGuvenli(temizAd,marka,faturaAdi);
+  return r.guven==='kesin'?r.malzeme:null;
 }
 
 function guncelleFiyat(m,fiyat,tarih){
@@ -678,26 +732,31 @@ function onaylaFatura(){
     const cb=document.getElementById('cb-'+i);
     if(!cb||!cb.checked)return;
     const fiyat=k.birim_fiyat_temel||0;
-    const esl=eslestir(k.temiz_ad,k.marka,k.fatura_adi);
+    const secim=(document.getElementById('esl-'+i)||{}).value||'__yeni__';
     const kalem={ad:k.temiz_ad,fatura_adi:k.fatura_adi,marka:k.marka,miktar:k.net_miktar,birim:k.temel_birim,birim_fiyat:fiyat,malzeme_id:null};
-    if(esl){
-      const eskiFiyat=esl.son_fiyat||0;
-      const eskiTarih=esl.fiyat_tarihi||null;
-      kalem.malzeme_id=esl.id;
-      guncelleFiyat(esl,fiyat,tarih);
-      // Fiyat değişimini SADECE son_fiyat gerçekten değiştiyse bildir
-      // (eski tarihli fatura yüklenince son_fiyat değişmez, yanlış uyarı çıkmaz)
-      const yeniSonFiyat=esl.son_fiyat||0;
-      if(eskiFiyat>0&&yeniSonFiyat>0&&Math.abs(yeniSonFiyat-eskiFiyat)/eskiFiyat>=0.01){
-        const yuzde=((yeniSonFiyat-eskiFiyat)/eskiFiyat)*100;
-        const etkilenen=DB.recete.filter(r=>receteIcerirMi(r,esl.id)).map(r=>r.ad);
-        degisimler.push({ad:esl.ad,eski:eskiFiyat,yeni:yeniSonFiyat,birim:esl.birim,yuzde,etkilenen});
+
+    if(secim!=='__yeni__'){
+      // Kullanıcı mevcut bir malzeme seçti
+      const esl=DB.malzeme.find(x=>x.id===secim);
+      if(esl){
+        const eskiFiyat=esl.son_fiyat||0;
+        kalem.malzeme_id=esl.id;
+        guncelleFiyat(esl,fiyat,tarih);
+        const yeniSonFiyat=esl.son_fiyat||0;
+        if(eskiFiyat>0&&yeniSonFiyat>0&&Math.abs(yeniSonFiyat-eskiFiyat)/eskiFiyat>=0.01){
+          const yuzde=((yeniSonFiyat-eskiFiyat)/eskiFiyat)*100;
+          const etkilenen=DB.recete.filter(r=>receteIcerirMi(r,esl.id)).map(r=>r.ad);
+          degisimler.push({ad:esl.ad,eski:eskiFiyat,yeni:yeniSonFiyat,birim:esl.birim,yuzde,etkilenen});
+        }
+        // Fatura adını VE temiz adı alternatif olarak öğren (bir daha sorulmasın)
+        [k.fatura_adi,k.temiz_ad].forEach(ad=>{
+          if(ad&&esl.ad!==ad){
+            if(!esl.alternatif_adlar)esl.alternatif_adlar=[];
+            if(!esl.alternatif_adlar.includes(ad))esl.alternatif_adlar.push(ad);
+          }
+        });
+        esN++;
       }
-      if(k.fatura_adi&&esl.ad!==k.fatura_adi){
-        if(!esl.alternatif_adlar)esl.alternatif_adlar=[];
-        if(!esl.alternatif_adlar.includes(k.fatura_adi))esl.alternatif_adlar.push(k.fatura_adi);
-      }
-      esN++;
     } else {
       const yeni={
         id:uid(),
@@ -824,11 +883,14 @@ function fileToBase64(file){
 }
 
 /* ── MALZEME ── */
+let _secimMalzeme=new Set();
+
 function malzemeRows(q){
   const list=DB.malzeme.filter(m=>!q||m.ad.toLowerCase().includes(q.toLowerCase())||(m.kategori||'').toLowerCase().includes(q.toLowerCase()));
   return list.length===0
-    ?`<tr><td colspan="6"><div class="empty">${!DB.malzeme.length?'Fatura yükleyince otomatik oluşur. İstersen elle de ekleyebilirsin.':'Sonuç yok.'}</div></td></tr>`
+    ?`<tr><td colspan="7"><div class="empty">${!DB.malzeme.length?'Fatura yükleyince otomatik oluşur. İstersen elle de ekleyebilirsin.':'Sonuç yok.'}</div></td></tr>`
     :list.map(m=>`<tr>
+      <td style="width:36px;text-align:center"><input type="checkbox" class="msec" value="${m.id}" ${_secimMalzeme.has(m.id)?'checked':''} onchange="malzemeSecimDegis('${m.id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--sea)"></td>
       <td><strong>${m.ad}</strong>${m.marka?`<br><small style="color:var(--text2)">${m.marka}</small>`:''}</td>
       <td><span class="badge info">${m.kategori||'—'}</span></td>
       <td class="num">${m.son_fiyat>0?`<strong>${fmtTL(m.son_fiyat)}</strong> / ${m.birim}`:'—'}</td>
@@ -841,9 +903,59 @@ function malzemeRows(q){
     </tr>`).join('');
 }
 
+function malzemeSecimDegis(id,secili){
+  if(secili)_secimMalzeme.add(id);else _secimMalzeme.delete(id);
+  guncelleSecimBar();
+}
+
+function tumunuSec(secili){
+  const q=(document.getElementById('mq')||{}).value||'';
+  const list=DB.malzeme.filter(m=>!q||m.ad.toLowerCase().includes(q.toLowerCase())||(m.kategori||'').toLowerCase().includes(q.toLowerCase()));
+  if(secili)list.forEach(m=>_secimMalzeme.add(m.id));
+  else list.forEach(m=>_secimMalzeme.delete(m.id));
+  document.querySelectorAll('.msec').forEach(cb=>cb.checked=secili);
+  guncelleSecimBar();
+}
+
+function guncelleSecimBar(){
+  const bar=document.getElementById('secim-bar');
+  if(!bar)return;
+  const n=_secimMalzeme.size;
+  if(n>0){
+    bar.style.display='flex';
+    document.getElementById('secim-sayi').textContent=n+' seçili';
+  } else {
+    bar.style.display='none';
+  }
+}
+
+function secimTemizle(){
+  _secimMalzeme.clear();
+  document.querySelectorAll('.msec').forEach(cb=>cb.checked=false);
+  const sa=document.getElementById('sec-all');if(sa)sa.checked=false;
+  guncelleSecimBar();
+}
+
+function topluSil(){
+  const ids=[..._secimMalzeme];
+  if(!ids.length)return;
+  // Reçetelerde kullanılanları tespit et
+  const kullanilan=ids.filter(id=>DB.recete.some(r=>(r.malzemeler||[]).some(rm=>rm.malzeme_id===id)));
+  let mesaj=`${ids.length} malzeme silinecek.`;
+  if(kullanilan.length)mesaj+=`\n\n⚠️ Bunlardan ${kullanilan.length} tanesi reçetelerde kullanılıyor; o reçetelerden de çıkarılacak.`;
+  mesaj+='\n\nDevam edilsin mi?';
+  if(!confirm(mesaj))return;
+  // Reçete bağlarını temizle
+  DB.recete.forEach(r=>{if(r.malzemeler)r.malzemeler=r.malzemeler.filter(rm=>!ids.includes(rm.malzeme_id));});
+  DB.malzeme=DB.malzeme.filter(m=>!ids.includes(m.id));
+  _secimMalzeme.clear();
+  saveDB();render();
+}
+
 function filterMalzeme(q){
   const tb=document.getElementById('malzeme-tbody');
   if(tb)tb.innerHTML=malzemeRows(q);
+  guncelleSecimBar();
 }
 
 function renderMalzeme(){
@@ -853,14 +965,26 @@ function renderMalzeme(){
     <div class="section-hd">
       <div class="search-box" style="margin-bottom:0;flex:1"><input id="mq" placeholder="Malzeme veya kategori ara..." oninput="filterMalzeme(this.value)" value="${q}"></div>
       <button class="btn" onclick="openTopluMalzeme()" title="Liste yapıştırarak çok sayıda malzeme ekle">≡ Toplu Ekle</button>
+      <button class="btn" onclick="alternatifTemizle()" title="Yanlış eşleşmiş alternatif adları temizler">🧹 Hatalı Eşleşme Temizle</button>
       <button class="btn" onclick="mukerrerBirlestir()" title="Aynı isimli çift kayıtları tek kayda indirir">⧉ Mükerrerleri Birleştir</button>
       <button class="btn primary" onclick="openAddMalzeme()">+ Elle Ekle</button>
     </div>
+    <div id="secim-bar" style="display:none;align-items:center;gap:10px;background:var(--sea-bg);border:1px solid var(--sea-border);border-radius:var(--r-sm);padding:10px 16px;margin-bottom:14px">
+      <strong id="secim-sayi" style="font-size:13px;color:var(--sea-ink)">0 seçili</strong>
+      <div style="flex:1"></div>
+      <button class="btn sm" onclick="openTopluDuzenle()">✎ Toplu Düzenle</button>
+      <button class="btn sm danger" onclick="topluSil()">🗑 Toplu Sil</button>
+      <button class="btn sm ghost" onclick="secimTemizle()">Seçimi Bırak</button>
+    </div>
     <div class="card" style="padding:0;overflow:hidden">
-      <table><thead><tr><th>Malzeme</th><th>Kategori</th><th>Son Fiyat</th><th>Son Alış</th><th>Tedarikçi</th><th></th></tr></thead><tbody id="malzeme-tbody">${malzemeRows(q)}</tbody></table>
+      <table><thead><tr>
+        <th style="width:36px;text-align:center"><input type="checkbox" id="sec-all" onchange="tumunuSec(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--sea)"></th>
+        <th>Malzeme</th><th>Kategori</th><th>Son Fiyat</th><th>Son Alış</th><th>Tedarikçi</th><th></th>
+      </tr></thead><tbody id="malzeme-tbody">${malzemeRows(q)}</tbody></table>
     </div>
     ${renderMalzemeModal()}
     ${renderTopluModal()}
+    ${renderTopluDuzenleModal()}
   </div>`;
 }
 
@@ -1085,6 +1209,81 @@ function topluKaydet(){
   setTimeout(()=>alert(`✓ İçe aktarıldı!\n${yeniN} yeni malzeme eklendi\n${guncelN} mevcut malzeme güncellendi`),100);
 }
 
+/* ── TOPLU DÜZENLEME ── */
+function renderTopluDuzenleModal(){
+  return `<div id="tduzen-modal" class="modal-bg" style="display:none">
+    <div class="modal" style="width:min(520px,100%)">
+      <div class="modal-head"><h3>Toplu Düzenle</h3>
+        <button class="modal-close" onclick="document.getElementById('tduzen-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-box" id="tduzen-bilgi">Seçili malzemelerde değiştirmek istediğin alanları doldur. Boş bıraktıkların değişmez.</div>
+
+        <label>Kategori (değiştirmek istemiyorsan boş bırak)</label>
+        <select id="td-kat"><option value="">— değiştirme —</option><option>Et & Balık</option><option>Sebze & Meyve</option><option>Süt & Peynir</option><option>Kuru Gıda</option><option>Baharat & Sos</option><option>İçecek</option><option>Unlu Mamul</option><option>Yağ & Sirke</option><option>Sarf</option><option>Diğer</option></select>
+
+        <label>Tedarikçi (değiştirmek istemiyorsan boş bırak)</label>
+        <select id="td-ted"><option value="">— değiştirme —</option><option>Metro HoReCa</option><option>Gayeli Toptan</option><option>M.L. Arıkan</option><option>Serbest Pazar</option><option>Diğer</option></select>
+
+        <hr class="sep">
+        <label>Toplu fiyat değişimi (zam/indirim)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="td-yon" style="max-width:120px"><option value="0">— uygulama —</option><option value="1">Zam (+)</option><option value="-1">İndirim (−)</option></select>
+          <input id="td-yuzde" type="number" step="0.1" placeholder="% oran" style="max-width:120px">
+          <span style="font-size:13px;color:var(--ink2)">%</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:6px">Örn: tüm seçili malzemelere %10 zam → fiyatları 1,10 ile çarpılır. Bugünün tarihiyle kaydedilir.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn primary" onclick="topluDuzenleUygula()" style="flex:1">Uygula</button>
+        <button class="btn" onclick="document.getElementById('tduzen-modal').style.display='none'">İptal</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openTopluDuzenle(){
+  if(!_secimMalzeme.size){alert('Önce malzeme seç.');return;}
+  document.getElementById('td-kat').value='';
+  document.getElementById('td-ted').value='';
+  document.getElementById('td-yon').value='0';
+  document.getElementById('td-yuzde').value='';
+  document.getElementById('tduzen-bilgi').innerHTML=`<strong>${_secimMalzeme.size} malzeme</strong> seçili. Değiştirmek istediğin alanları doldur, boş bıraktıkların değişmez.`;
+  document.getElementById('tduzen-modal').style.display='flex';
+}
+
+function topluDuzenleUygula(){
+  const ids=[..._secimMalzeme];
+  if(!ids.length)return;
+  const kat=document.getElementById('td-kat').value;
+  const ted=document.getElementById('td-ted').value;
+  const yon=parseInt(document.getElementById('td-yon').value)||0;
+  const yuzde=parseFloat(document.getElementById('td-yuzde').value)||0;
+  const tarih=new Date().toISOString();
+
+  if(!kat&&!ted&&!(yon!==0&&yuzde>0)){alert('Değiştirilecek bir şey seçmedin.');return;}
+
+  let fiyatDegisen=0;
+  ids.forEach(id=>{
+    const m=DB.malzeme.find(x=>x.id===id);if(!m)return;
+    if(kat)m.kategori=kat;
+    if(ted)m.tedarikci=ted;
+    if(yon!==0&&yuzde>0&&m.son_fiyat>0){
+      const carpan=1+(yon*yuzde/100);
+      const yeniFiyat=Math.round(m.son_fiyat*carpan*100)/100;
+      guncelleFiyat(m,yeniFiyat,tarih);
+      fiyatDegisen++;
+    }
+  });
+  saveDB();
+  document.getElementById('tduzen-modal').style.display='none';
+  _secimMalzeme.clear();
+  render();
+  let mesaj=`✓ ${ids.length} malzeme güncellendi.`;
+  if(fiyatDegisen)mesaj+=`\n${fiyatDegisen} malzemenin fiyatı değişti — bağlı reçetelerin maliyetleri otomatik güncellendi.`;
+  setTimeout(()=>alert(mesaj),100);
+}
+
 
 // Aynı isimli mükerrer malzemeleri birleştir
 function mukerrerBirlestir(){
@@ -1121,6 +1320,36 @@ function mukerrerBirlestir(){
   });
   saveDB();render();
   alert(`✓ ${toplam} mükerrer kayıt birleştirildi. Reçete bağları korundu.`);
+}
+
+// Yanlış girilmiş alternatif adları temizle: malzemenin gerçek adıyla
+// anlamlı kelime örtüşmesi olmayan alternatif adları kaldırır.
+function alternatifTemizle(){
+  let temizlenen=0;
+  const detay=[];
+  DB.malzeme.forEach(m=>{
+    if(!m.alternatif_adlar||!m.alternatif_adlar.length)return;
+    const anaKelimeler=new Set(adKelimeleri(m.ad));
+    // Ana addan kelime çıkmıyorsa dokunma (riskli)
+    if(!anaKelimeler.size)return;
+    const kalanlar=[];
+    const atilanlar=[];
+    m.alternatif_adlar.forEach(alt=>{
+      const altKelimeler=adKelimeleri(alt);
+      // Alternatif adın ana adla en az bir anlamlı ortak kelimesi olmalı
+      const ortak=altKelimeler.filter(w=>anaKelimeler.has(w));
+      if(ortak.length>0)kalanlar.push(alt);
+      else atilanlar.push(alt);
+    });
+    if(atilanlar.length){
+      m.alternatif_adlar=kalanlar;
+      temizlenen+=atilanlar.length;
+      detay.push(`${m.ad}: ${atilanlar.length} hatalı ad atıldı`);
+    }
+  });
+  if(!temizlenen){alert('Temizlenecek hatalı alternatif ad bulunamadı.');return;}
+  saveDB();render();
+  alert(`✓ ${temizlenen} hatalı alternatif ad temizlendi.\n\n${detay.join('\n')}\n\nNot: Fiyatlar etkilenmedi. Yanlış eşleşmeden gelen hatalı fiyat varsa ilgili malzemeyi düzenleyip düzeltebilirsin.`);
 }
 
 /* ── REÇETE ── */
