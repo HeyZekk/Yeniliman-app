@@ -622,10 +622,16 @@ function gosterOnay(parsed){
       ${durumBadge}
       <div style="flex-basis:100%;margin-top:6px;display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--ink2);white-space:nowrap">Şuraya kaydet:</span>
-        <select id="esl-${i}" style="font-size:12px;padding:6px 8px" ${r.guven==='supheli'?'data-uyari="1"':''}>
-          <option value="__yeni__" ${seciliId==='__yeni__'?'selected':''}>+ Yeni malzeme olarak ekle</option>
-          ${DB.malzeme.map(m=>`<option value="${m.id}" ${seciliId===m.id?'selected':''}>${m.ad}${m.marka?' ('+m.marka+')':''}</option>`).join('')}
-        </select>
+        <div class="combo" style="flex:1">
+          <input type="hidden" id="esl-${i}" value="${seciliId}">
+          <input type="text" class="combo-input" id="esl-search-${i}" autocomplete="off"
+            value="${r.malzeme?(r.malzeme.ad+(r.malzeme.marka?' ('+r.malzeme.marka+')':'')):'+ Yeni malzeme olarak ekle'}"
+            placeholder="Malzeme ara veya yeni ekle..."
+            onfocus="this.select();onaltKomboFiltrele(${i})"
+            oninput="onaltKomboFiltrele(${i})"
+            style="font-size:13px">
+          <div class="combo-list" id="esl-list-${i}" style="display:none"></div>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -651,6 +657,39 @@ function gosterOnay(parsed){
   </div>`;
 
   alan.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// Onay ekranı eşleştirme combobox'ı: yazdıkça filtrele
+function onaltKomboFiltrele(i){
+  const inp=document.getElementById('esl-search-'+i);
+  const list=document.getElementById('esl-list-'+i);
+  if(!inp||!list)return;
+  const q=inp.value.toLowerCase().trim();
+  // "yeni" seçeneği + eşleşen malzemeler
+  let html=`<div class="combo-item" onclick="onaltKomboSec(${i},'__yeni__','+ Yeni malzeme olarak ekle')">
+    <span style="font-weight:600;color:var(--sea-ink)">+ Yeni malzeme olarak ekle</span></div>`;
+  const eslesen=DB.malzeme.filter(m=>{
+    if(!q||q==='+ yeni malzeme olarak ekle')return true;
+    const hav=[m.ad,m.marka,...(m.alternatif_adlar||[])].filter(Boolean).join(' ').toLowerCase();
+    return hav.includes(q);
+  }).slice(0,50);
+  html+=eslesen.map(m=>{
+    const etiket=(m.ad+(m.marka?' ('+m.marka+')':'')).replace(/'/g,"\\'");
+    return `<div class="combo-item" onclick="onaltKomboSec(${i},'${m.id}','${etiket}')">
+      <span>${m.ad}${m.marka?' ('+m.marka+')':''}</span>
+      <span class="combo-sub">${m.son_fiyat>0?fmtTL(m.son_fiyat)+'/'+m.birim:''}</span>
+    </div>`;
+  }).join('');
+  if(!eslesen.length)html+=`<div class="combo-empty">Eşleşen malzeme yok — "yeni malzeme" ile ekleyebilirsin</div>`;
+  list.innerHTML=html;
+  list.style.display='block';
+}
+
+function onaltKomboSec(i,id,etiket){
+  document.getElementById('esl-'+i).value=id;
+  document.getElementById('esl-search-'+i).value=etiket;
+  const list=document.getElementById('esl-list-'+i);
+  if(list)list.style.display='none';
 }
 
 // Ad normalleştirme: marka, ambalaj, gramaj gibi gürültüyü temizle, anlamlı kelimeleri döndür
