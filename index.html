@@ -519,10 +519,17 @@ KURALLAR — çok önemli:
    "KAANLAR MASCARPONE 400G" → "Mascarpone"
    "KARİDES 16/20 %30 GLAZE 1KG" → "Karides"
 
-2) temel_birim: Ağırlık ürünü ise "kg", sıvı ise "lt", sayılabilir ise "adet".
+2) temel_birim: Ağırlık ürünü ise "kg", dökme sıvı ise "lt", AMBALAJLI/ŞİŞE/KUTU içecek ise "adet".
+   ÖNEMLİ: Su, kola, şalgam, ayran, soda, meşrubat gibi şişelenmiş/kutulanmış içecekler ADET olarak sayılır, litreye ÇEVRİLMEZ. Çünkü bunlar müşteriye şişe/kutu olarak satılır.
+   Sadece dökme/bidon sıvılar (yağ, sirke, dökme süt) "lt" olur.
 
-3) brut_miktar: Ürünün TEMEL BİRİM cinsinden TOPLAM brüt (ambalajda yazan) içeriği. (koli × ambalaj)
-   "12KG kalamar, 1 adet" → brut_miktar: 12
+3) brut_miktar: Ürünün TEMEL BİRİM cinsinden TOPLAM içeriği.
+   - Ağırlık/dökme sıvı için: koli × ambalaj içeriği (kg/lt).
+   - ŞİŞE/KUTU içecek için: TOPLAM ADET = alınan koli sayısı × koli içindeki adet.
+   Fatura adında "*24", "*12", "x24" gibi ifade KOLİ İÇİNDEKİ ADET sayısıdır.
+   Örnek: "KALTUN SU 0,5 LT *24", miktar 40 Kutu → 40 koli × 24 = 960 adet → brut_miktar: 960, temel_birim: "adet"
+   Örnek: "DOĞANAY ŞALGAM 1 LT *12", miktar 10 Kutu → 10 × 12 = 120 adet → brut_miktar: 120, temel_birim: "adet"
+   Örnek: "ZEYBEK BARDAK SU *72", miktar 0,50 Kutu → 0,5 × 72 = 36 adet → brut_miktar: 36, temel_birim: "adet"
 
 4) glaze_oran: Donmuş deniz ürünlerinde buz/glaze oranı (yüzde, sayı olarak). Faturada "%30 glaze", "30% glazeli", "net %70" gibi geçer.
    "%30 glazeli" → glaze_oran: 30
@@ -532,9 +539,12 @@ KURALLAR — çok önemli:
    "12 kg, %30 glaze" → net_miktar: 8.4
    Glaze yoksa net_miktar = brut_miktar.
 
-6) birim_fiyat_temel: NET ağırlık başına KDV HARİÇ fiyat = (KDV'siz satır tutarı) ÷ net_miktar.
+6) birim_fiyat_temel: NET içerik başına KDV HARİÇ fiyat = (KDV'siz satır tutarı / "Mal Hizmet Tutarı") ÷ net_miktar.
    Karides: 12.000 TL (KDV hariç) ÷ 8.4 kg (net) = 1.428,57 TL/kg
    Glazesiz ürün: KDV'siz tutar ÷ brut_miktar.
+   ŞİŞE/KUTU içecek (ADET): KDV'siz tutar ÷ toplam adet.
+   Örnek: KALTUN SU 0,5 LT *24, 40 Kutu, Mal Hizmet Tutarı 4.554,46 TL → 4.554,46 ÷ 960 = 4,74 TL/adet
+   Örnek: ZEYBEK BARDAK SU, Mal Hizmet Tutarı 49,50 TL ÷ 36 adet = 1,38 TL/adet
    Faturada sadece KDV dahil fiyat varsa, önce KDV'yi çıkar.
 
 7) kdv_oran: O kalemin KDV oranı (1, 10, 20).
