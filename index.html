@@ -1555,6 +1555,33 @@ function renderReceteModal(){
         <button class="btn" onclick="document.getElementById('r-modal').style.display='none'">İptal</button>
       </div>
     </div>
+
+    <div id="hizli-modal" class="modal-bg" style="display:none;z-index:200">
+      <div class="modal" style="width:min(440px,100%)">
+        <div class="modal-head"><h3>Hızlı Malzeme Ekle</h3>
+          <button class="modal-close" onclick="document.getElementById('hizli-modal').style.display='none'">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-box" style="margin-bottom:14px">Bu malzeme kaydedilip reçeteye eklenecek. Detayları sonra Malzemeler'den düzenleyebilirsin.</div>
+          <label>Malzeme adı</label>
+          <input id="hizli-ad" placeholder="Örn: Kapari">
+          <div class="grid2">
+            <div><label>Fiyat (₺, brüt) </label><input id="hizli-fiyat" type="number" step="0.01" placeholder="0.00"></div>
+            <div><label>Birim</label>
+            <select id="hizli-birim"><option value="kg">kg</option><option value="gr">gr</option><option value="lt">lt</option><option value="ml">ml</option><option value="adet">adet</option><option value="paket">paket</option><option value="kutu">kutu</option><option value="demet">demet</option></select></div>
+          </div>
+          <div class="grid2">
+            <div><label>KDV oranı</label>
+            <select id="hizli-kdv"><option value="1">%1</option><option value="10" selected>%10</option><option value="20">%20</option></select></div>
+            <div><label>Glaze % (deniz ürünü)</label><input id="hizli-glaze" type="number" step="1" min="0" max="90" placeholder="0"></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn primary" onclick="hizliMalzemeKaydet()" style="flex:1">Kaydet & Reçeteye Ekle</button>
+          <button class="btn" onclick="document.getElementById('hizli-modal').style.display='none'">İptal</button>
+        </div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -1643,15 +1670,29 @@ function filterCombo(type,idx,q){
   const query=(q==='__ALL__'?'':q).toLocaleLowerCase('tr');
   const filtered=query?all.filter(o=>o.label.toLocaleLowerCase('tr').includes(query)):all;
   _comboFilter[`${type}-${idx}`]=filtered;
+
+  let html='';
   if(!filtered.length){
-    listEl.innerHTML=`<div class="combo-empty">Sonuç yok</div>`;
+    html=`<div class="combo-empty">Sonuç yok</div>`;
   } else {
-    listEl.innerHTML=filtered.slice(0,50).map((o,j)=>
+    html=filtered.slice(0,50).map((o,j)=>
       `<div class="combo-item" data-j="${j}" onmousedown="pickCombo('${type}',${idx},'${o.id}')">
         <span>${o.label}</span><span class="combo-sub">${o.sub}</span>
       </div>`
     ).join('');
   }
+  // Malzeme combobox'ında: bir şey yazıldıysa "yeni malzeme ekle" seçeneği ekle
+  if(type==='rm'){
+    const yazilan=(q==='__ALL__'?'':q).trim();
+    if(yazilan){
+      const guvenli=yazilan.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      html+=`<div class="combo-item" style="border-top:1px solid var(--line);background:var(--sea-bg)" onmousedown="hizliMalzemeAc(${idx},'${guvenli}')">
+        <span style="font-weight:600;color:var(--sea-ink)">+ "${yazilan}" diye yeni malzeme ekle</span>
+        <span class="combo-sub">hızlı ekle</span>
+      </div>`;
+    }
+  }
+  listEl.innerHTML=html;
   listEl.style.display='block';
 }
 
@@ -1668,6 +1709,52 @@ function pickCombo(type,idx,id){
   const unitEl=document.getElementById(`${type}-unit-${idx}`);
   if(unitEl&&obj)unitEl.textContent=type==='rm'?obj.birim:(obj.birim||'por');
   onQtyChange(type,idx);
+}
+
+// Reçeteden çıkmadan hızlı malzeme ekleme
+let _hizliIdx=null;
+function hizliMalzemeAc(idx,ad){
+  _hizliIdx=idx;
+  // Açılan combobox listesini kapat
+  const listEl=document.getElementById(`rm-list-${idx}`);if(listEl)listEl.style.display='none';
+  document.getElementById('hizli-ad').value=ad;
+  document.getElementById('hizli-fiyat').value='';
+  document.getElementById('hizli-birim').value='kg';
+  document.getElementById('hizli-kdv').value='10';
+  document.getElementById('hizli-glaze').value='';
+  document.getElementById('hizli-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('hizli-fiyat').focus(),50);
+}
+
+function hizliMalzemeKaydet(){
+  const ad=document.getElementById('hizli-ad').value.trim();
+  if(!ad){alert('Malzeme adı boş olamaz.');return;}
+  let fiyat=parseFloat(document.getElementById('hizli-fiyat').value)||0;
+  const birim=document.getElementById('hizli-birim').value;
+  const kdv=parseFloat(document.getElementById('hizli-kdv').value)||0;
+  const glaze=parseFloat(document.getElementById('hizli-glaze').value)||0;
+  if(glaze>0&&glaze<90&&fiyat>0)fiyat=fiyat/(1-glaze/100); // brüt → net
+  // Aynı isimde var mı kontrol
+  let m=DB.malzeme.find(x=>{
+    const adlar=[x.ad,...(x.alternatif_adlar||[])].map(s=>s.toLowerCase().trim());
+    return adlar.includes(ad.toLowerCase().trim());
+  });
+  const tarih=new Date().toISOString();
+  if(m){
+    if(fiyat>0)guncelleFiyat(m,fiyat,tarih);
+  } else {
+    m={id:uid(),ad,marka:'',alternatif_adlar:[],kategori:'Diğer',son_fiyat:fiyat,kdv_oran:kdv,glaze_oran:glaze,birim,tedarikci:'',fiyat_tarihi:fiyat>0?tarih:null,fiyat_gecmisi:fiyat>0?[{fiyat,tarih}]:[]};
+    DB.malzeme.push(m);
+  }
+  saveDB();
+  // Reçete satırına yerleştir
+  if(_hizliIdx!=null){
+    rMalzemeler[_hizliIdx].malzeme_id=m.id;
+    renderRMList();
+    setTimeout(()=>{const inp=document.getElementById(`rm-search-${_hizliIdx}`);if(inp)inp.value=`${m.ad}`;},20);
+  }
+  document.getElementById('hizli-modal').style.display='none';
+  _hizliIdx=null;
 }
 
 function comboKey(e,type,idx){
