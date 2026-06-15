@@ -149,7 +149,7 @@ tbody tr:hover td{background:var(--bg2)}
 .progress{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:12px}
 .progress-bar{height:5px;background:var(--sea);border-radius:3px;transition:width 0.4s}
 .num{font-variant-numeric:tabular-nums}
-.live-calc{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:14px}
+.live-calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:14px}
 .live-calc>div{background:var(--bg2);padding:14px}
 .live-calc .lc-lbl{font-size:11px;color:var(--ink2);font-weight:600;margin-bottom:5px}
 .live-calc .lc-val{font-size:18px;font-weight:700;letter-spacing:-0.3px}
@@ -284,6 +284,35 @@ function birimMaliyet(r){
   return hesapla(r)/(r.porsiyon||1);
 }
 
+/* ── KDV / KÂR HESAPLARI ──
+   Maliyet daima KDV HARİÇ tutulur (son_fiyat KDV hariçtir).
+   Satış fiyatı KDV DAHİL girilir (müşterinin ödediği).
+   Gerçek gelir = satış / (1 + KDV/100). Gerçek kâr = gerçek gelir − maliyet. */
+function netGelir(fiyatKdvDahil,kdvOran){
+  const f=parseFloat(fiyatKdvDahil)||0;
+  return f>0?f/(1+(parseFloat(kdvOran)||0)/100):0;
+}
+// Bir menü ürününün KDV hariç maliyeti (reçeteli veya hazır)
+function menuMaliyet(m){
+  if(!m)return 0;
+  if(m.tip==='hazir')return m.hazir_maliyet||0;
+  const r=DB.recete.find(x=>x.id===m.recete_id);
+  return r?birimMaliyet(r):0;
+}
+// Tam analiz: maliyet, net gelir, kâr, food cost %
+function menuAnaliz(m){
+  const maliyet=menuMaliyet(m);
+  const net=netGelir(m.fiyat,m.satis_kdv!=null?m.satis_kdv:10);
+  const kar=net-maliyet;
+  const fc=net>0?(maliyet/net)*100:0;
+  return {maliyet,net,kar,fc,fiyat:m.fiyat||0};
+}
+// KDV dahil fiyattan KDV hariç fiyat (alış tarafında manuel giriş için)
+function kdvCikar(fiyat,oran){
+  const f=parseFloat(fiyat)||0;
+  return f/(1+(parseFloat(oran)||0)/100);
+}
+
 function renderNav(){
   const counts={dashboard:'',fatura:DB.fatura.length,malzeme:DB.malzeme.length,recete:DB.recete.length,menu:DB.menu_items.length};
   document.getElementById('nav').innerHTML=TABS.map(t=>{
@@ -308,34 +337,24 @@ function render(){
 
 /* ── DASHBOARD ── */
 function renderDashboard(){
+  const analiz=DB.menu_items.map(m=>({...m,...menuAnaliz(m)}));
   let ac=0,cc=0;
-  DB.menu_items.forEach(m=>{
-    const r=DB.recete.find(x=>x.id===m.recete_id);
-    if(r&&m.fiyat>0){ac+=(hesapla(r)/m.fiyat)*100;cc++;}
-  });
+  analiz.forEach(a=>{if(a.net>0){ac+=a.fc;cc++;}});
   const avg=cc>0?ac/cc:0;
-
-  // En karlı ve en zayıf ürünler
-  const analiz=DB.menu_items.map(m=>{
-    const r=DB.recete.find(x=>x.id===m.recete_id);
-    const mc=r?hesapla(r):0;
-    const pct=m.fiyat>0?(mc/m.fiyat)*100:0;
-    return {...m,mc,pct,kar:m.fiyat-mc};
-  });
-  const sorunlu=analiz.filter(a=>a.pct>40).length;
+  const sorunlu=analiz.filter(a=>a.fc>40).length;
 
   const tableRows=analiz.length===0
     ?`<tr><td colspan="5"><div class="empty"><div class="big">Henüz menü ürünü yok</div>Reçete kurup menüye bağlayınca karlılık burada görünecek</div></td></tr>`
-    :analiz.sort((a,b)=>b.pct-a.pct).map(m=>`<tr>
-        <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}</small>`:''}</td>
-        <td class="num">${fmtTL(m.mc)}</td>
-        <td class="num"><strong>${fmtTL(m.fiyat)}</strong></td>
+    :analiz.sort((a,b)=>b.fc-a.fc).map(m=>`<tr>
+        <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}${m.tip==='hazir'?' · hazır':''}</small>`:''}</td>
+        <td class="num">${fmtTL(m.maliyet)}</td>
+        <td class="num"><strong>${fmtTL(m.fiyat)}</strong><br><small style="color:var(--ink2)">net ${fmtTL(m.net)}</small></td>
         <td class="num ${m.kar>=0?'cost-ok':'cost-bad'}">${fmtTL(m.kar)}</td>
-        <td><span class="badge ${costBadge(m.pct)}">%${fmt(m.pct,1)}</span></td>
+        <td><span class="badge ${costBadge(m.fc)}">%${fmt(m.fc,1)}</span></td>
       </tr>`).join('');
 
   return `<div class="page active">
-    <div class="page-head"><h2>Genel Bakış</h2><p>Yeniliman Restaurant · maliyet ve karlılık özeti</p></div>
+    <div class="page-head"><h2>Genel Bakış</h2><p>Yeniliman Restaurant · kâr rakamları KDV hariç (gerçek) hesaplanır</p></div>
     <div class="grid4" style="margin-bottom:18px">
       <div class="metric"><div class="lbl">📦 Malzeme</div><div class="val num">${DB.malzeme.length}</div></div>
       <div class="metric"><div class="lbl">👨‍🍳 Reçete</div><div class="val num">${DB.recete.length}</div></div>
@@ -344,9 +363,9 @@ function renderDashboard(){
     </div>
     ${sorunlu>0?`<div class="warn-box">⚠️ ${sorunlu} ürünün food cost'u %40'ın üzerinde. Bu ürünlerin fiyatını gözden geçirmek isteyebilirsin.</div>`:''}
     <div class="card">
-      <div class="card-title">Menü Karlılığı <span class="badge info">Hedef ≤ %32</span> <span class="badge neutral">yüksekten düşüğe</span></div>
+      <div class="card-title">Menü Karlılığı <span class="badge info">Hedef ≤ %32</span> <span class="badge neutral">net gelir = KDV hariç</span></div>
       <table>
-        <thead><tr><th>Ürün</th><th>Maliyet</th><th>Satış</th><th>Kar</th><th>Food Cost</th></tr></thead>
+        <thead><tr><th>Ürün</th><th>Maliyet</th><th>Satış (KDV dahil)</th><th>Gerçek Kâr</th><th>Food Cost</th></tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
@@ -491,7 +510,7 @@ function buildPrompt(){
   return `Bu bir Türk restoran faturasıdır. Sen deneyimli bir restoran maliyet uzmanısın. Her kalemi mutfakta kullanılabilir hale getir. SADECE JSON döndür, başka hiçbir şey yazma, markdown veya kod bloğu kullanma.
 
 Format:
-{"tedarikci":"firma adı","tarih":"YYYY-MM-DD","toplam":0,"kalemler":[{"temiz_ad":"kısa malzeme adı","fatura_adi":"faturadaki tam ad","marka":"marka veya null","kategori":"gida veya sarf","net_miktar":0,"temel_birim":"kg/lt/adet","koli_adet":0,"birim_fiyat_temel":0,"satir_tutari":0}]}
+{"tedarikci":"firma adı","tarih":"YYYY-MM-DD","toplam":0,"kalemler":[{"temiz_ad":"kısa malzeme adı","fatura_adi":"faturadaki tam ad","marka":"marka veya null","kategori":"gida veya sarf","net_miktar":0,"temel_birim":"kg/lt/adet","koli_adet":0,"birim_fiyat_temel":0,"kdv_oran":0,"satir_tutari":0}]}
 
 KURALLAR — çok önemli:
 
@@ -510,15 +529,18 @@ KURALLAR — çok önemli:
    "SÜZME YOĞURT 5KG, 2 adet" → net_miktar: 10, temel_birim: "kg"
    "YUMURTA 150Lİ, 1 adet" → net_miktar: 150, temel_birim: "adet"
 
-4) birim_fiyat_temel: TEMEL BİRİM başına KDV DAHİL fiyat (satir_tutari ÷ net_miktar, KDV ekleyerek).
-   Kalamar 11.605,20 TL + %1 KDV = 11.721 TL ÷ 12 kg ≈ 976,8 TL/kg
-   Mascarpone: (2.550 + %1) ÷ 2 kg ≈ 1.287,75 TL/kg
+4) birim_fiyat_temel: TEMEL BİRİM başına KDV HARİÇ fiyat. Faturadaki "Mal Hizmet Tutarı" (KDV'siz satır tutarı) ÷ net_miktar. KDV EKLEME.
+   Kalamar: 11.605,20 TL (KDV hariç tutar) ÷ 12 kg = 967,10 TL/kg
+   Mascarpone: 2.550 TL (KDV hariç) ÷ 2 kg = 1.275 TL/kg
+   Faturada sadece KDV dahil fiyat varsa, KDV oranını çıkarıp KDV hariç fiyatı hesapla.
 
-5) kategori: Yemekte kullanılan her şey "gida". Temizlik/ambalaj/kömür/mendil/kase/camsil gibi yenmeyenler "sarf".
+5) kdv_oran: O kalemin KDV oranı (sayı olarak: 1, 10, 20 gibi). Faturadan oku.
 
-6) koli_adet: Faturada alınan paket/adet sayısı (bilgi amaçlı).
+6) kategori: Yemekte kullanılan her şey "gida". Temizlik/ambalaj/kömür/mendil/kase/camsil gibi yenmeyenler "sarf".
 
-7) satir_tutari: O kalemin KDV dahil toplam tutarı.
+7) koli_adet: Faturada alınan paket/adet sayısı (bilgi amaçlı).
+
+8) satir_tutari: O kalemin KDV HARİÇ satır tutarı (Mal Hizmet Tutarı).
 
 Tüm kalemleri ekle, hiçbirini atlama.`;
 }
@@ -571,7 +593,7 @@ function gosterOnay(parsed){
       <input type="checkbox" id="cb-${i}" ${sarfMi?'':'checked'}>
       <div class="kd">
         <strong>${k.temiz_ad||k.fatura_adi}${k.marka?' · '+k.marka:''} ${sarfMi?'<span class="badge warn" style="margin-left:4px">sarf</span>':''}</strong>
-        <span>${fmt(k.net_miktar,2)} ${k.temel_birim} · <strong style="color:var(--text)">${fmtTL(k.birim_fiyat_temel||0)}/${k.temel_birim}</strong> · <span style="color:var(--text3)">${k.fatura_adi}</span></span>
+        <span>${fmt(k.net_miktar,2)} ${k.temel_birim} · <strong style="color:var(--text)">${fmtTL(k.birim_fiyat_temel||0)}/${k.temel_birim}</strong> <span style="color:var(--ink3)">KDV hariç${k.kdv_oran!=null?' · KDV %'+k.kdv_oran:''}</span> · <span style="color:var(--text3)">${k.fatura_adi}</span></span>
       </div>
       ${esl
         ?`<span class="badge ok">→ ${esl.ad}</span>`
@@ -672,6 +694,7 @@ function onaylaFatura(){
         alternatif_adlar:k.fatura_adi&&k.fatura_adi!==k.temiz_ad?[k.fatura_adi]:[],
         kategori:k.kategori==='sarf'?'Sarf':'Diğer',
         son_fiyat:fiyat,
+        kdv_oran:k.kdv_oran!=null?k.kdv_oran:10,
         birim:k.temel_birim||'adet',
         tedarikci:p.tedarikci||'',
         fiyat_tarihi:tarih,
@@ -851,6 +874,12 @@ function renderMalzemeModal(){
         <div><label>Son fiyat (₺)</label><input id="m-fiyat" type="number" step="0.01" placeholder="0.00"></div>
         <div><label>Son alış tarihi</label><input id="m-tarih" type="date"></div>
       </div>
+      <div class="grid2">
+        <div><label>Girdiğin fiyat KDV...</label>
+        <select id="m-kdv-dahil"><option value="haric">KDV hariç</option><option value="dahil">KDV dahil</option></select></div>
+        <div><label>KDV oranı</label>
+        <select id="m-kdv-oran"><option value="1">%1</option><option value="10" selected>%10</option><option value="20">%20</option></select></div>
+      </div>
       <label>Tedarikçi</label>
       <select id="m-ted"><option value="">Seç...</option><option>Metro HoReCa</option><option>Gayeli Toptan</option><option>M.L. Arıkan</option><option>Serbest Pazar</option><option>Diğer</option></select>
       </div>
@@ -870,6 +899,8 @@ function openAddMalzeme(){
     document.getElementById('m-kat').value='';
     document.getElementById('m-birim').value='kg';
     document.getElementById('m-ted').value='';
+    document.getElementById('m-kdv-dahil').value='haric';
+    document.getElementById('m-kdv-oran').value='10';
     document.getElementById('m-tarih').value=new Date().toISOString().slice(0,10);
     document.getElementById('m-modal').style.display='flex';
   },10);
@@ -888,6 +919,9 @@ function editMalzeme(id){
     document.getElementById('m-fiyat').value=m.son_fiyat||'';
     document.getElementById('m-birim').value=m.birim||'kg';
     document.getElementById('m-ted').value=m.tedarikci||'';
+    // Düzenlemede son_fiyat zaten KDV hariç saklanıyor
+    document.getElementById('m-kdv-dahil').value='haric';
+    document.getElementById('m-kdv-oran').value=m.kdv_oran!=null?m.kdv_oran:10;
     document.getElementById('m-tarih').value=m.fiyat_tarihi?new Date(m.fiyat_tarihi).toISOString().slice(0,10):new Date().toISOString().slice(0,10);
     document.getElementById('m-modal').style.display='flex';
   },10);
@@ -897,20 +931,22 @@ function saveMalzeme(){
   const id=document.getElementById('m-id').value;
   const ad=document.getElementById('m-ad').value.trim();
   if(!ad){alert('Malzeme adı zorunlu.');return;}
-  const fiyat=parseFloat(document.getElementById('m-fiyat').value)||0;
+  let fiyat=parseFloat(document.getElementById('m-fiyat').value)||0;
+  const kdvOran=parseFloat(document.getElementById('m-kdv-oran').value)||0;
+  const kdvDahil=document.getElementById('m-kdv-dahil').value==='dahil';
+  // KDV dahil girildiyse KDV hariç fiyata çevir (sistem hep KDV hariç saklar)
+  if(fiyat>0&&kdvDahil)fiyat=kdvCikar(fiyat,kdvOran);
   const tarihStr=document.getElementById('m-tarih').value;
   const tarih=tarihStr?new Date(tarihStr).toISOString():new Date().toISOString();
   const alt=document.getElementById('m-alt').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const obj={ad,marka:document.getElementById('m-marka').value.trim(),alternatif_adlar:alt,kategori:document.getElementById('m-kat').value,birim:document.getElementById('m-birim').value,tedarikci:document.getElementById('m-ted').value};
+  const obj={ad,marka:document.getElementById('m-marka').value.trim(),alternatif_adlar:alt,kategori:document.getElementById('m-kat').value,birim:document.getElementById('m-birim').value,tedarikci:document.getElementById('m-ted').value,kdv_oran:kdvOran};
   if(id){
     const m=DB.malzeme.find(x=>x.id===id);
     if(m){
       Object.assign(m,obj);
-      // Fiyat girilmişse tarih-bazlı güncelle
       if(fiyat>0)guncelleFiyat(m,fiyat,tarih);
     }
   } else {
-    // Mükerrer kontrolü
     const mevcut=DB.malzeme.find(m=>{
       const adlar=[m.ad,...(m.alternatif_adlar||[])].map(s=>s.toLowerCase().trim());
       return adlar.includes(ad.toLowerCase().trim());
@@ -921,6 +957,7 @@ function saveMalzeme(){
         if(fiyat>0)guncelleFiyat(mevcut,fiyat,tarih);
         if(obj.marka&&!mevcut.marka)mevcut.marka=obj.marka;
         if(obj.tedarikci&&!mevcut.tedarikci)mevcut.tedarikci=obj.tedarikci;
+        mevcut.kdv_oran=kdvOran;
         alt.forEach(a=>{if(!mevcut.alternatif_adlar)mevcut.alternatif_adlar=[];if(!mevcut.alternatif_adlar.includes(a))mevcut.alternatif_adlar.push(a);});
         saveDB();
         document.getElementById('m-modal').style.display='none';
@@ -1087,7 +1124,7 @@ function receteCards(q,kat){
     const mc=hesapla(r);
     const bm=birimMaliyet(r);
     const mi=DB.menu_items.find(m=>m.recete_id===r.id);
-    const pct=mi&&mi.fiyat>0?(mc/mi.fiyat)*100:null;
+    const pct=mi&&mi.fiyat>0?(bm/netGelir(mi.fiyat,mi.satis_kdv!=null?mi.satis_kdv:10))*100:null;
     const altSayisi=(r.alt_receteler||[]).length;
     const altRecepteMi=DB.recete.some(x=>(x.alt_receteler||[]).some(a=>a.recete_id===r.id));
     return `<div class="card" style="margin-bottom:12px">
@@ -1180,8 +1217,13 @@ function renderReceteModal(){
         </div>
       </div>
 
-      <label>Hedef satış fiyatı (₺) <span style="color:var(--ink3);font-weight:400">— deneme amaçlı, kar hesabını anında görürsün</span></label>
-      <input id="r-hedef" type="number" step="0.01" placeholder="Bir fiyat yaz, kar/food cost anında çıksın" oninput="guncellePreview()">
+      <label>Hedef satış fiyatı (KDV dahil, ₺) <span style="color:var(--ink3);font-weight:400">— deneme amaçlı, gerçek kârı anında görürsün</span></label>
+      <div style="display:flex;gap:8px">
+        <input id="r-hedef" type="number" step="0.01" placeholder="Bir fiyat yaz" style="flex:1" oninput="guncellePreview()">
+        <select id="r-hedef-kdv" style="max-width:150px" onchange="guncellePreview()">
+          <option value="10">KDV %10</option><option value="20">KDV %20</option><option value="1">KDV %1</option>
+        </select>
+      </div>
       <div id="r-hedef-calc" class="live-calc" style="display:none">
         <div><div class="lc-lbl">Birim maliyet</div><div class="lc-val num" id="hc-mc">—</div></div>
         <div><div class="lc-lbl">Kar</div><div class="lc-val num" id="hc-kar">—</div></div>
@@ -1355,20 +1397,22 @@ function guncellePreview(){
     document.getElementById('r-prev-val').textContent=fmtTL(t);
     document.getElementById('r-prev-birim').textContent=fmtTL(bm)+' / '+birim;
   }
-  // Hedef fiyat canlı hesabı
+  // Hedef fiyat canlı hesabı (KDV dahil fiyattan gerçek kâr)
   const hedefEl=document.getElementById('r-hedef');
   const calc=document.getElementById('r-hedef-calc');
   const hedef=parseFloat(hedefEl?hedefEl.value:0)||0;
+  const hedefKdv=parseFloat((document.getElementById('r-hedef-kdv')||{}).value)||10;
   if(calc){
     if(hedef>0){
-      const kar=hedef-bm;
-      const fc=(bm/hedef)*100;
+      const net=netGelir(hedef,hedefKdv);
+      const kar=net-bm;
+      const fc=net>0?(bm/net)*100:0;
       calc.style.display='grid';
-      document.getElementById('hc-mc').textContent=fmtTL(bm);
-      const karEl=document.getElementById('hc-kar');
-      karEl.textContent=fmtTL(kar);karEl.className='lc-val num '+(kar>=0?'cost-ok':'cost-bad');
-      const fcEl=document.getElementById('hc-fc');
-      fcEl.textContent='%'+fmt(fc,1);fcEl.className='lc-val num '+costColor(fc);
+      calc.innerHTML=`
+        <div><div class="lc-lbl">Birim maliyet</div><div class="lc-val num">${fmtTL(bm)}</div></div>
+        <div><div class="lc-lbl">Net gelir (KDV hariç)</div><div class="lc-val num">${fmtTL(net)}</div></div>
+        <div><div class="lc-lbl">Gerçek kâr</div><div class="lc-val num ${kar>=0?'cost-ok':'cost-bad'}">${fmtTL(kar)}</div></div>
+        <div><div class="lc-lbl">Food cost</div><div class="lc-val num ${costColor(fc)}">%${fmt(fc,1)}</div></div>`;
     } else {
       calc.style.display='none';
     }
@@ -1388,6 +1432,7 @@ function openAddRecete(){
     document.getElementById('r-pors').value='1';
     document.getElementById('r-birim').value='porsiyon';
     document.getElementById('r-kat').value='';
+    document.getElementById('r-hedef-kdv').value='10';
     renderRMList();
     document.getElementById('r-modal').style.display='flex';
   },10);
@@ -1408,6 +1453,7 @@ function editRecete(id){
     // Menüde bağlı fiyat varsa hedef olarak göster
     const mi=DB.menu_items.find(m=>m.recete_id===r.id);
     document.getElementById('r-hedef').value=mi&&mi.fiyat?mi.fiyat:'';
+    document.getElementById('r-hedef-kdv').value=mi&&mi.satis_kdv!=null?mi.satis_kdv:10;
     renderRMList();
     document.getElementById('r-modal').style.display='flex';
   },10);
@@ -1466,31 +1512,32 @@ function deleteRecete(id){
 /* ── MENÜ ── */
 function renderMenu(){
   const rows=DB.menu_items.length===0
-    ?`<div class="empty">Henüz menü ürünü eklenmedi</div>`
+    ?`<div class="empty"><div class="big">Henüz menü ürünü eklenmedi</div>Reçeteli ürün veya hazır ürün (kola, su, bira) ekleyebilirsin</div>`
     :`<div class="card" style="padding:0;overflow:hidden"><table>
-      <thead><tr><th>Ürün</th><th>Reçete</th><th>Maliyet</th><th>Satış</th><th>Kar</th><th>Food Cost</th><th></th></tr></thead>
+      <thead><tr><th>Ürün</th><th>Tür / Kaynak</th><th>Maliyet</th><th>Satış (KDV dahil)</th><th>Net Gelir</th><th>Gerçek Kâr</th><th>Food Cost</th><th></th></tr></thead>
       <tbody>${DB.menu_items.map(m=>{
-        const r=DB.recete.find(x=>x.id===m.recete_id);
-        const mc=r?hesapla(r):0;
-        const pct=m.fiyat>0?(mc/m.fiyat)*100:0;
-        const kar=m.fiyat-mc;
+        const a=menuAnaliz(m);
+        const kaynak=m.tip==='hazir'
+          ?`<span class="badge neutral">hazır ürün</span>`
+          :(()=>{const r=DB.recete.find(x=>x.id===m.recete_id);return r?`<span style="font-size:12px">${r.ad}</span>`:`<span style="color:var(--red);font-size:12px">reçete yok</span>`;})();
         return `<tr>
-          <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--text2)">${m.kategori}</small>`:''}</td>
-          <td style="font-size:12px">${r?r.ad:`<span style="color:var(--red)">Reçete yok</span>`}</td>
-          <td>${fmtTL(mc)}</td>
-          <td><strong>${fmtTL(m.fiyat)}</strong></td>
-          <td class="${kar>=0?'cost-ok':'cost-bad'}">${fmtTL(kar)}</td>
-          <td><span class="badge ${costBadge(pct)}">%${fmt(pct,1)}</span></td>
+          <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}</small>`:''}</td>
+          <td>${kaynak}</td>
+          <td class="num">${fmtTL(a.maliyet)}</td>
+          <td class="num"><strong>${fmtTL(a.fiyat)}</strong><br><small style="color:var(--ink2)">KDV %${m.satis_kdv!=null?m.satis_kdv:10}</small></td>
+          <td class="num">${fmtTL(a.net)}</td>
+          <td class="num ${a.kar>=0?'cost-ok':'cost-bad'}"><strong>${fmtTL(a.kar)}</strong></td>
+          <td><span class="badge ${costBadge(a.fc)}">%${fmt(a.fc,1)}</span></td>
           <td style="display:flex;gap:6px">
-            <button class="btn sm" onclick="editMI('${m.id}')">Düzenle</button>
-            <button class="btn sm danger" onclick="deleteMI('${m.id}')">Sil</button>
+            <button class="btn sm" onclick="editMI('${m.id}')" title="Düzenle">✎</button>
+            <button class="btn sm danger" onclick="deleteMI('${m.id}')" title="Sil">✕</button>
           </td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
 
   return `<div class="page active">
-    <div class="page-head"><h2>Menü & Fiyat</h2><p>Satış fiyatları ve canlı karlılık analizi</p></div>
+    <div class="page-head"><h2>Menü & Fiyat</h2><p>Reçeteli ve hazır ürünler · gerçek kâr KDV hariç hesaplanır</p></div>
     <div class="section-hd">
       <div></div>
       <button class="btn primary" onclick="openAddMI()">+ Ürün Ekle</button>
@@ -1508,21 +1555,48 @@ function renderMIModal(){
       </div>
       <div class="modal-body">
       <input type="hidden" id="mi-id">
-      <label>Menüdeki adı *</label><input id="mi-ad" placeholder="Örn: Levrek Izgara">
-      <label>Bağlı reçete</label>
-      <select id="mi-recete" oninput="previewMI()">
-        <option value="">Reçete seç...</option>
-        ${DB.recete.map(r=>`<option value="${r.id}">${r.ad}</option>`).join('')}
-      </select>
-      <label>Kategori</label>
-      <select id="mi-kat"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>İçecek</option><option>Pizza</option><option>Diğer</option></select>
-      <label>Satış fiyatı (₺) *</label>
-      <input id="mi-fiyat" type="number" step="0.01" placeholder="0.00" oninput="previewMI()">
+      <label>Menüdeki adı *</label><input id="mi-ad" placeholder="Örn: Levrek Izgara / Kola">
+
+      <label>Ürün türü</label>
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--r-sm);cursor:pointer">
+          <input type="radio" name="mi-tip" value="recete" checked onchange="miTipDegis()" style="width:auto"> Reçeteli ürün
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--r-sm);cursor:pointer">
+          <input type="radio" name="mi-tip" value="hazir" onchange="miTipDegis()" style="width:auto"> Hazır ürün
+        </label>
+      </div>
+
+      <div id="mi-recete-alan">
+        <label>Bağlı reçete</label>
+        <select id="mi-recete" onchange="previewMI()">
+          <option value="">Reçete seç...</option>
+          ${DB.recete.map(r=>`<option value="${r.id}">${r.ad}</option>`).join('')}
+        </select>
+      </div>
+
+      <div id="mi-hazir-alan" style="display:none">
+        <label>Alış maliyeti (KDV hariç, ₺) <span style="color:var(--ink3);font-weight:400">— faturadan KDV'siz tutar</span></label>
+        <input id="mi-maliyet" type="number" step="0.01" placeholder="Örn: 88" oninput="previewMI()">
+      </div>
+
+      <div class="grid2">
+        <div><label>Kategori</label>
+        <select id="mi-kat" onchange="miKatDegis()"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>Meşrubat</option><option>Alkollü İçki</option><option>Pizza</option><option>Diğer</option></select></div>
+        <div><label>Satış KDV oranı</label>
+        <select id="mi-kdv" onchange="previewMI()"><option value="10">%10 (yemek/meşrubat)</option><option value="20">%20 (alkollü içki)</option><option value="1">%1</option></select></div>
+      </div>
+
+      <label>Satış fiyatı (KDV dahil, ₺) * <span style="color:var(--ink3);font-weight:400">— müşterinin ödediği</span></label>
+      <input id="mi-fiyat" type="number" step="0.01" placeholder="Örn: 220" oninput="previewMI()">
+
       <div id="mi-prev" class="live-calc" style="display:none">
-        <div><div class="lc-lbl">Maliyet</div><div class="lc-val num" id="mi-mc">—</div></div>
-        <div><div class="lc-lbl">Kar</div><div class="lc-val num" id="mi-kar">—</div></div>
+        <div><div class="lc-lbl">Maliyet (KDV hariç)</div><div class="lc-val num" id="mi-mc">—</div></div>
+        <div><div class="lc-lbl">Net gelir</div><div class="lc-val num" id="mi-net">—</div></div>
+        <div><div class="lc-lbl">Gerçek kâr</div><div class="lc-val num" id="mi-kar">—</div></div>
         <div><div class="lc-lbl">Food cost</div><div class="lc-val num" id="mi-pct">—</div></div>
       </div>
+      <div id="mi-kdv-note" style="display:none;font-size:12px;color:var(--ink2);margin-top:10px;line-height:1.5"></div>
       </div>
       <div class="modal-foot">
         <button class="btn primary" onclick="saveMI()" style="flex:1">Kaydet</button>
@@ -1532,18 +1606,56 @@ function renderMIModal(){
   </div>`;
 }
 
+function miTipDegis(){
+  const tip=document.querySelector('input[name="mi-tip"]:checked').value;
+  document.getElementById('mi-recete-alan').style.display=tip==='recete'?'block':'none';
+  document.getElementById('mi-hazir-alan').style.display=tip==='hazir'?'block':'none';
+  previewMI();
+}
+
+// Kategori seçilince satış KDV'sini otomatik ayarla (alkollü → 20, diğer → 10)
+function miKatDegis(){
+  const kat=document.getElementById('mi-kat').value;
+  const kdvSel=document.getElementById('mi-kdv');
+  if(kat==='Alkollü İçki')kdvSel.value='20';
+  else kdvSel.value='10';
+  previewMI();
+}
+
 function previewMI(){
-  const rid=document.getElementById('mi-recete').value;
+  const tip=document.querySelector('input[name="mi-tip"]:checked').value;
   const fiyat=parseFloat(document.getElementById('mi-fiyat').value)||0;
+  const kdv=parseFloat(document.getElementById('mi-kdv').value)||10;
   const pv=document.getElementById('mi-prev');
-  if(!rid||fiyat<=0){if(pv)pv.style.display='none';return;}
-  const r=DB.recete.find(x=>x.id===rid);if(!r){if(pv)pv.style.display='none';return;}
-  const mc=hesapla(r);const kar=fiyat-mc;const pct=(mc/fiyat)*100;
+  const note=document.getElementById('mi-kdv-note');
+
+  let maliyet=0,gecerli=false;
+  if(tip==='recete'){
+    const rid=document.getElementById('mi-recete').value;
+    const r=DB.recete.find(x=>x.id===rid);
+    if(r){maliyet=birimMaliyet(r);gecerli=true;}
+  } else {
+    maliyet=parseFloat(document.getElementById('mi-maliyet').value)||0;
+    gecerli=maliyet>0;
+  }
+
+  if(!gecerli||fiyat<=0){if(pv)pv.style.display='none';if(note)note.style.display='none';return;}
+
+  const net=netGelir(fiyat,kdv);
+  const kar=net-maliyet;
+  const fc=net>0?(maliyet/net)*100:0;
+  const kdvTutar=fiyat-net;
+
   if(pv){
     pv.style.display='grid';
-    document.getElementById('mi-mc').textContent=fmtTL(mc);
+    document.getElementById('mi-mc').textContent=fmtTL(maliyet);
+    document.getElementById('mi-net').textContent=fmtTL(net);
     const k=document.getElementById('mi-kar');k.textContent=fmtTL(kar);k.className='lc-val num '+(kar>=0?'cost-ok':'cost-bad');
-    const p=document.getElementById('mi-pct');p.textContent='%'+fmt(pct,1);p.className='lc-val num '+costColor(pct);
+    const p=document.getElementById('mi-pct');p.textContent='%'+fmt(fc,1);p.className='lc-val num '+costColor(fc);
+  }
+  if(note){
+    note.style.display='block';
+    note.innerHTML=`💡 ${fmtTL(fiyat)} satıştan ${fmtTL(kdvTutar)} KDV (%${kdv}) devlete gidiyor, sana ${fmtTL(net)} kalıyor. Maliyet ${fmtTL(maliyet)} düşünce gerçek kârın <strong>${fmtTL(kar)}</strong>.`;
   }
 }
 
@@ -1551,9 +1663,12 @@ function openAddMI(){
   render();
   setTimeout(()=>{
     document.getElementById('mi-title').textContent='Menü Ürünü Ekle';
-    ['mi-id','mi-ad','mi-fiyat'].forEach(id=>document.getElementById(id).value='');
+    ['mi-id','mi-ad','mi-fiyat','mi-maliyet'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('mi-recete').value='';
     document.getElementById('mi-kat').value='';
+    document.getElementById('mi-kdv').value='10';
+    document.querySelector('input[name="mi-tip"][value="recete"]').checked=true;
+    miTipDegis();
     document.getElementById('mi-modal').style.display='flex';
   },10);
 }
@@ -1568,8 +1683,12 @@ function editMI(id){
     document.getElementById('mi-recete').value=m.recete_id||'';
     document.getElementById('mi-kat').value=m.kategori||'';
     document.getElementById('mi-fiyat').value=m.fiyat||'';
+    document.getElementById('mi-maliyet').value=m.hazir_maliyet||'';
+    document.getElementById('mi-kdv').value=m.satis_kdv!=null?m.satis_kdv:10;
+    const tip=m.tip==='hazir'?'hazir':'recete';
+    document.querySelector(`input[name="mi-tip"][value="${tip}"]`).checked=true;
+    miTipDegis();
     document.getElementById('mi-modal').style.display='flex';
-    previewMI();
   },10);
 }
 
@@ -1577,8 +1696,20 @@ function saveMI(){
   const id=document.getElementById('mi-id').value;
   const ad=document.getElementById('mi-ad').value.trim();
   const fiyat=parseFloat(document.getElementById('mi-fiyat').value)||0;
+  const tip=document.querySelector('input[name="mi-tip"]:checked').value;
+  const kdv=parseFloat(document.getElementById('mi-kdv').value)||10;
   if(!ad||fiyat<=0){alert('Ürün adı ve satış fiyatı zorunlu.');return;}
-  const obj={ad,recete_id:document.getElementById('mi-recete').value||null,kategori:document.getElementById('mi-kat').value,fiyat};
+  const obj={
+    ad,
+    tip,
+    kategori:document.getElementById('mi-kat').value,
+    fiyat,
+    satis_kdv:kdv,
+    recete_id:tip==='recete'?(document.getElementById('mi-recete').value||null):null,
+    hazir_maliyet:tip==='hazir'?(parseFloat(document.getElementById('mi-maliyet').value)||0):0
+  };
+  if(tip==='recete'&&!obj.recete_id){alert('Reçeteli ürün için bir reçete seçmelisin.');return;}
+  if(tip==='hazir'&&obj.hazir_maliyet<=0){alert('Hazır ürün için alış maliyeti girmelisin.');return;}
   if(id){const m=DB.menu_items.find(x=>x.id===id);if(m)Object.assign(m,obj);}
   else DB.menu_items.push({id:uid(),...obj});
   saveDB();
