@@ -1993,11 +1993,12 @@ function renderMIModal(){
 
       <div id="mi-hazir-alan" style="display:none">
         <label>Hangi malzeme? <span style="color:var(--ink3);font-weight:400">— faturadan gelen ürünü seç, maliyet otomatik gelir</span></label>
-        <select id="mi-hazir-malzeme" onchange="hazirMalzemeSec()">
-          <option value="">Malzeme seç...</option>
-          ${DB.malzeme.map(m=>`<option value="${m.id}">${m.ad}${m.marka?' ('+m.marka+')':''} — ${fmtTL(m.son_fiyat)}/${m.birim}</option>`).join('')}
-          <option value="__elle__">+ Listede yok, elle gireceğim</option>
-        </select>
+        <div class="combo">
+          <input type="hidden" id="mi-hazir-malzeme" value="">
+          <input type="text" class="combo-input" id="mi-hazir-search" autocomplete="off" placeholder="Malzeme ara..."
+            onfocus="miHazirKomboFiltrele()" oninput="miHazirKomboFiltrele()">
+          <div class="combo-list" id="mi-hazir-list" style="display:none"></div>
+        </div>
         <div id="mi-maliyet-alan" style="display:none">
           <label>Alış maliyeti (KDV hariç, ₺)</label>
           <input id="mi-maliyet" type="number" step="0.01" placeholder="Örn: 4.74" oninput="previewMI()">
@@ -2046,6 +2047,36 @@ function miKatDegis(){
   previewMI();
 }
 
+// Hazır ürün malzeme combobox'ı
+function miHazirKomboFiltrele(){
+  const inp=document.getElementById('mi-hazir-search');
+  const list=document.getElementById('mi-hazir-list');
+  if(!inp||!list)return;
+  const q=inp.value.toLocaleLowerCase('tr').trim();
+  const eslesen=DB.malzeme.filter(m=>{
+    if(!q)return true;
+    const hav=[m.ad,m.marka,...(m.alternatif_adlar||[])].filter(Boolean).join(' ').toLocaleLowerCase('tr');
+    return hav.includes(q);
+  }).slice(0,50);
+  let html=eslesen.map(m=>{
+    const etiket=(m.ad+(m.marka?' ('+m.marka+')':'')).replace(/'/g,"\\'");
+    return `<div class="combo-item" onmousedown="miHazirKomboSec('${m.id}','${etiket}')">
+      <span>${m.ad}${m.marka?' ('+m.marka+')':''}</span><span class="combo-sub">${fmtTL(m.son_fiyat)}/${m.birim}</span></div>`;
+  }).join('');
+  html+=`<div class="combo-item" style="border-top:1px solid var(--line);background:var(--bg2)" onmousedown="miHazirKomboSec('__elle__','+ Listede yok, elle gireceğim')">
+    <span style="color:var(--ink2)">+ Listede yok, elle gireceğim</span></div>`;
+  if(!eslesen.length&&q)html=`<div class="combo-empty">Eşleşen malzeme yok</div>`+html;
+  list.innerHTML=html;
+  list.style.display='block';
+}
+
+function miHazirKomboSec(id,etiket){
+  document.getElementById('mi-hazir-malzeme').value=id;
+  document.getElementById('mi-hazir-search').value=etiket;
+  document.getElementById('mi-hazir-list').style.display='none';
+  hazirMalzemeSec();
+}
+
 // Hazır üründe malzeme seçilince
 function hazirMalzemeSec(){
   const sel=document.getElementById('mi-hazir-malzeme').value;
@@ -2055,7 +2086,6 @@ function hazirMalzemeSec(){
   } else if(sel){
     malAlan.style.display='none';
     const m=DB.malzeme.find(x=>x.id===sel);
-    // Ürün adı boşsa malzeme adıyla doldur
     const adInp=document.getElementById('mi-ad');
     if(m&&!adInp.value.trim())adInp.value=m.ad;
   } else {
@@ -2114,6 +2144,7 @@ function openAddMI(){
     ['mi-id','mi-ad','mi-fiyat','mi-maliyet'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('mi-recete').value='';
     document.getElementById('mi-hazir-malzeme').value='';
+    document.getElementById('mi-hazir-search').value='';
     document.getElementById('mi-maliyet-alan').style.display='none';
     document.getElementById('mi-kat').value='';
     document.getElementById('mi-kdv').value='10';
@@ -2137,11 +2168,14 @@ function editMI(id){
     // Hazır ürün: malzeme bağlı mı, elle mi?
     if(m.tip==='hazir'){
       if(m.hazir_malzeme_id){
+        const hm=DB.malzeme.find(x=>x.id===m.hazir_malzeme_id);
         document.getElementById('mi-hazir-malzeme').value=m.hazir_malzeme_id;
+        document.getElementById('mi-hazir-search').value=hm?(hm.ad+(hm.marka?' ('+hm.marka+')':'')):'';
         document.getElementById('mi-maliyet').value='';
         document.getElementById('mi-maliyet-alan').style.display='none';
       } else {
         document.getElementById('mi-hazir-malzeme').value='__elle__';
+        document.getElementById('mi-hazir-search').value='+ Listede yok, elle gireceğim';
         document.getElementById('mi-maliyet').value=m.hazir_maliyet||'';
         document.getElementById('mi-maliyet-alan').style.display='block';
       }
