@@ -197,9 +197,10 @@ const TABS=[
   {id:'malzeme',label:'Malzemeler',ico:'📦'},
   {id:'recete',label:'Reçeteler',ico:'👨‍🍳'},
   {id:'menu',label:'Menü & Fiyat',ico:'🍴'},
+  {id:'zayi',label:'Zayi',ico:'🗑'},
 ];
 
-let DB={malzeme:[],fatura:[],recete:[],menu_items:[]};
+let DB={malzeme:[],fatura:[],recete:[],menu_items:[],zayi:[]};
 let activeTab='fatura';
 let apiKey=localStorage.getItem('yn_api_key')||'';
 
@@ -214,6 +215,7 @@ function saveApiKey(){
 
 function loadDB(){
   try{const d=localStorage.getItem('yn_db');if(d)DB=JSON.parse(d);}catch(e){}
+  if(!DB.zayi)DB.zayi=[];
   if(apiKey)document.getElementById('api-key-bar').style.display='none';
   else document.getElementById('api-key-input').value='';
   render();
@@ -242,7 +244,7 @@ function yedekYukle(input){
       const veri=JSON.parse(r.result);
       if(!veri.malzeme||!veri.recete){alert('Geçersiz yedek dosyası.');return;}
       if(!confirm('Mevcut tüm veriler bu yedekle değiştirilecek. Devam edilsin mi?'))return;
-      DB={malzeme:veri.malzeme||[],fatura:veri.fatura||[],recete:veri.recete||[],menu_items:veri.menu_items||[]};
+      DB={malzeme:veri.malzeme||[],fatura:veri.fatura||[],recete:veri.recete||[],menu_items:veri.menu_items||[],zayi:veri.zayi||[]};
       saveDB();render();
       alert('✓ Yedek geri yüklendi.');
     }catch(e){alert('Dosya okunamadı: '+e.message);}
@@ -292,10 +294,16 @@ function netGelir(fiyatKdvDahil,kdvOran){
   const f=parseFloat(fiyatKdvDahil)||0;
   return f>0?f/(1+(parseFloat(kdvOran)||0)/100):0;
 }
-// Bir menü ürününün KDV hariç maliyeti (reçeteli veya hazır)
+// Bir menü ürününün KDV hariç maliyeti (reçeteli, malzeme-bağlı hazır, veya elle hazır)
 function menuMaliyet(m){
   if(!m)return 0;
-  if(m.tip==='hazir')return m.hazir_maliyet||0;
+  if(m.tip==='hazir'){
+    if(m.hazir_malzeme_id){
+      const mal=DB.malzeme.find(x=>x.id===m.hazir_malzeme_id);
+      return mal?(mal.son_fiyat||0):0;
+    }
+    return m.hazir_maliyet||0;
+  }
   const r=DB.recete.find(x=>x.id===m.recete_id);
   return r?birimMaliyet(r):0;
 }
@@ -333,6 +341,7 @@ function render(){
   else if(activeTab==='malzeme')c.innerHTML=renderMalzeme();
   else if(activeTab==='recete')c.innerHTML=renderRecete();
   else if(activeTab==='menu')c.innerHTML=renderMenu();
+  else if(activeTab==='zayi')c.innerHTML=renderZayi();
 }
 
 /* ── DASHBOARD ── */
@@ -1983,8 +1992,16 @@ function renderMIModal(){
       </div>
 
       <div id="mi-hazir-alan" style="display:none">
-        <label>Alış maliyeti (KDV hariç, ₺) <span style="color:var(--ink3);font-weight:400">— faturadan KDV'siz tutar</span></label>
-        <input id="mi-maliyet" type="number" step="0.01" placeholder="Örn: 88" oninput="previewMI()">
+        <label>Hangi malzeme? <span style="color:var(--ink3);font-weight:400">— faturadan gelen ürünü seç, maliyet otomatik gelir</span></label>
+        <select id="mi-hazir-malzeme" onchange="hazirMalzemeSec()">
+          <option value="">Malzeme seç...</option>
+          ${DB.malzeme.map(m=>`<option value="${m.id}">${m.ad}${m.marka?' ('+m.marka+')':''} — ${fmtTL(m.son_fiyat)}/${m.birim}</option>`).join('')}
+          <option value="__elle__">+ Listede yok, elle gireceğim</option>
+        </select>
+        <div id="mi-maliyet-alan" style="display:none">
+          <label>Alış maliyeti (KDV hariç, ₺)</label>
+          <input id="mi-maliyet" type="number" step="0.01" placeholder="Örn: 4.74" oninput="previewMI()">
+        </div>
       </div>
 
       <div class="grid2">
@@ -2029,6 +2046,24 @@ function miKatDegis(){
   previewMI();
 }
 
+// Hazır üründe malzeme seçilince
+function hazirMalzemeSec(){
+  const sel=document.getElementById('mi-hazir-malzeme').value;
+  const malAlan=document.getElementById('mi-maliyet-alan');
+  if(sel==='__elle__'){
+    malAlan.style.display='block';
+  } else if(sel){
+    malAlan.style.display='none';
+    const m=DB.malzeme.find(x=>x.id===sel);
+    // Ürün adı boşsa malzeme adıyla doldur
+    const adInp=document.getElementById('mi-ad');
+    if(m&&!adInp.value.trim())adInp.value=m.ad;
+  } else {
+    malAlan.style.display='none';
+  }
+  previewMI();
+}
+
 function previewMI(){
   const tip=document.querySelector('input[name="mi-tip"]:checked').value;
   const fiyat=parseFloat(document.getElementById('mi-fiyat').value)||0;
@@ -2042,8 +2077,14 @@ function previewMI(){
     const r=DB.recete.find(x=>x.id===rid);
     if(r){maliyet=birimMaliyet(r);gecerli=true;}
   } else {
-    maliyet=parseFloat(document.getElementById('mi-maliyet').value)||0;
-    gecerli=maliyet>0;
+    const sel=document.getElementById('mi-hazir-malzeme').value;
+    if(sel&&sel!=='__elle__'){
+      const m=DB.malzeme.find(x=>x.id===sel);
+      if(m){maliyet=m.son_fiyat||0;gecerli=true;}
+    } else if(sel==='__elle__'){
+      maliyet=parseFloat(document.getElementById('mi-maliyet').value)||0;
+      gecerli=maliyet>0;
+    }
   }
 
   if(!gecerli||fiyat<=0){if(pv)pv.style.display='none';if(note)note.style.display='none';return;}
@@ -2072,6 +2113,8 @@ function openAddMI(){
     document.getElementById('mi-title').textContent='Menü Ürünü Ekle';
     ['mi-id','mi-ad','mi-fiyat','mi-maliyet'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('mi-recete').value='';
+    document.getElementById('mi-hazir-malzeme').value='';
+    document.getElementById('mi-maliyet-alan').style.display='none';
     document.getElementById('mi-kat').value='';
     document.getElementById('mi-kdv').value='10';
     document.querySelector('input[name="mi-tip"][value="recete"]').checked=true;
@@ -2090,8 +2133,19 @@ function editMI(id){
     document.getElementById('mi-recete').value=m.recete_id||'';
     document.getElementById('mi-kat').value=m.kategori||'';
     document.getElementById('mi-fiyat').value=m.fiyat||'';
-    document.getElementById('mi-maliyet').value=m.hazir_maliyet||'';
     document.getElementById('mi-kdv').value=m.satis_kdv!=null?m.satis_kdv:10;
+    // Hazır ürün: malzeme bağlı mı, elle mi?
+    if(m.tip==='hazir'){
+      if(m.hazir_malzeme_id){
+        document.getElementById('mi-hazir-malzeme').value=m.hazir_malzeme_id;
+        document.getElementById('mi-maliyet').value='';
+        document.getElementById('mi-maliyet-alan').style.display='none';
+      } else {
+        document.getElementById('mi-hazir-malzeme').value='__elle__';
+        document.getElementById('mi-maliyet').value=m.hazir_maliyet||'';
+        document.getElementById('mi-maliyet-alan').style.display='block';
+      }
+    }
     const tip=m.tip==='hazir'?'hazir':'recete';
     document.querySelector(`input[name="mi-tip"][value="${tip}"]`).checked=true;
     miTipDegis();
@@ -2106,6 +2160,7 @@ function saveMI(){
   const tip=document.querySelector('input[name="mi-tip"]:checked').value;
   const kdv=parseFloat(document.getElementById('mi-kdv').value)||10;
   if(!ad||fiyat<=0){alert('Ürün adı ve satış fiyatı zorunlu.');return;}
+  const hazirSel=document.getElementById('mi-hazir-malzeme').value;
   const obj={
     ad,
     tip,
@@ -2113,10 +2168,11 @@ function saveMI(){
     fiyat,
     satis_kdv:kdv,
     recete_id:tip==='recete'?(document.getElementById('mi-recete').value||null):null,
-    hazir_maliyet:tip==='hazir'?(parseFloat(document.getElementById('mi-maliyet').value)||0):0
+    hazir_malzeme_id:(tip==='hazir'&&hazirSel&&hazirSel!=='__elle__')?hazirSel:null,
+    hazir_maliyet:(tip==='hazir'&&hazirSel==='__elle__')?(parseFloat(document.getElementById('mi-maliyet').value)||0):0
   };
   if(tip==='recete'&&!obj.recete_id){alert('Reçeteli ürün için bir reçete seçmelisin.');return;}
-  if(tip==='hazir'&&obj.hazir_maliyet<=0){alert('Hazır ürün için alış maliyeti girmelisin.');return;}
+  if(tip==='hazir'&&!obj.hazir_malzeme_id&&obj.hazir_maliyet<=0){alert('Hazır ürün için bir malzeme seç veya alış maliyeti gir.');return;}
   if(id){const m=DB.menu_items.find(x=>x.id===id);if(m)Object.assign(m,obj);}
   else DB.menu_items.push({id:uid(),...obj});
   saveDB();
@@ -2127,6 +2183,186 @@ function saveMI(){
 function deleteMI(id){
   if(!confirm('Menü ürününü sil?'))return;
   DB.menu_items=DB.menu_items.filter(x=>x.id!==id);
+  saveDB();render();
+}
+
+/* ── ZAYİ (FİRE/KAYIP) TAKİBİ ── */
+const ZAYI_SEBEP=['Bozuldu','Kırıldı/Döküldü','Fire (hazırlık)','Çalındı/Kayıp','Diğer'];
+
+// Bir zayi kaydının maliyeti (KDV hariç)
+function zayiMaliyet(z){
+  const m=DB.malzeme.find(x=>x.id===z.malzeme_id);
+  if(!m)return 0;
+  return (m.son_fiyat||0)*(z.miktar||0);
+}
+
+function renderZayi(){
+  // Bu ayın zayi toplamı
+  const simdi=new Date();
+  const buAy=simdi.getFullYear()+'-'+String(simdi.getMonth()+1).padStart(2,'0');
+  let buAyTutar=0,toplamTutar=0;
+  DB.zayi.forEach(z=>{
+    const t=zayiMaliyet(z);
+    toplamTutar+=t;
+    if(z.tarih&&z.tarih.slice(0,7)===buAy)buAyTutar+=t;
+  });
+
+  // Sebebe göre dağılım (bu ay)
+  const sebepDagilim={};
+  DB.zayi.filter(z=>z.tarih&&z.tarih.slice(0,7)===buAy).forEach(z=>{
+    const s=z.sebep||'Diğer';
+    sebepDagilim[s]=(sebepDagilim[s]||0)+zayiMaliyet(z);
+  });
+  const sebepRows=Object.entries(sebepDagilim).sort((a,b)=>b[1]-a[1]).map(([s,t])=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span>${s}</span><strong class="num">${fmtTL(t)}</strong></div>`
+  ).join('')||'<div style="font-size:13px;color:var(--ink3)">Bu ay zayi kaydı yok</div>';
+
+  const rows=DB.zayi.length===0
+    ?`<tr><td colspan="6"><div class="empty"><div class="big">Henüz zayi kaydı yok</div>Bozulan, kırılan veya fire olan malzeme/ürünleri buradan kaydet</div></td></tr>`
+    :DB.zayi.slice().sort((a,b)=>new Date(b.tarih||0)-new Date(a.tarih||0)).map(z=>{
+        const m=DB.malzeme.find(x=>x.id===z.malzeme_id);
+        return `<tr>
+          <td style="font-size:12px;color:var(--ink2)">${z.tarih?new Date(z.tarih).toLocaleDateString('tr-TR'):'—'}</td>
+          <td><strong>${m?m.ad:'(silinmiş malzeme)'}</strong></td>
+          <td class="num">${fmt(z.miktar,2)} ${m?m.birim:''}</td>
+          <td><span class="badge neutral">${z.sebep||'—'}</span></td>
+          <td class="num"><strong>${fmtTL(zayiMaliyet(z))}</strong></td>
+          <td><button class="btn sm danger" onclick="deleteZayi('${z.id}')" title="Sil">✕</button></td>
+        </tr>`;
+      }).join('');
+
+  return `<div class="page active">
+    <div class="page-head"><h2>Zayi Takibi</h2><p>Bozulan, kırılan, fire olan malzeme ve ürünlerin maliyeti</p></div>
+    <div class="grid2" style="margin-bottom:18px">
+      <div class="metric"><div class="lbl">📅 Bu ay zayi</div><div class="val num cost-bad">${fmtTL(buAyTutar)}</div></div>
+      <div class="metric"><div class="lbl">∑ Toplam zayi</div><div class="val num">${fmtTL(toplamTutar)}</div></div>
+    </div>
+    <div class="grid2" style="margin-bottom:18px;align-items:start">
+      <div class="card" style="margin:0">
+        <div class="card-title">Bu Ay Sebebe Göre</div>
+        ${sebepRows}
+      </div>
+      <div class="card" style="margin:0">
+        <div class="card-title">Not</div>
+        <p style="font-size:13px;color:var(--ink2);line-height:1.6">Zayi maliyeti, malzemenin güncel (KDV hariç) fiyatı üzerinden hesaplanır. Aylık zayi tutarın yüksekse, en çok hangi sebepten kaynaklandığına bak — kırılma çoksa depolama, bozulma çoksa sipariş miktarı gözden geçirilmeli.</p>
+      </div>
+    </div>
+    <div class="section-hd">
+      <div></div>
+      <button class="btn primary" onclick="openAddZayi()">+ Zayi Kaydet</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Tarih</th><th>Malzeme</th><th>Miktar</th><th>Sebep</th><th>Maliyet</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    </div>
+    ${renderZayiModal()}
+  </div>`;
+}
+
+function renderZayiModal(){
+  return `<div id="zayi-modal" class="modal-bg" style="display:none">
+    <div class="modal" style="width:min(460px,100%)">
+      <div class="modal-head"><h3>Zayi Kaydet</h3>
+        <button class="modal-close" onclick="document.getElementById('zayi-modal').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
+        <label>Malzeme / ürün</label>
+        <div class="combo">
+          <input type="hidden" id="zayi-malzeme">
+          <input type="text" class="combo-input" id="zayi-search" autocomplete="off" placeholder="Malzeme ara..."
+            onfocus="zayiKomboFiltrele()" oninput="zayiKomboFiltrele()">
+          <div class="combo-list" id="zayi-list" style="display:none"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Miktar</label><input id="zayi-miktar" type="number" step="0.001" placeholder="0" oninput="zayiOnizle()"><span id="zayi-birim" style="font-size:12px;color:var(--ink2)"></span></div>
+          <div><label>Tarih</label><input id="zayi-tarih" type="date"></div>
+        </div>
+        <label>Sebep</label>
+        <select id="zayi-sebep">${ZAYI_SEBEP.map(s=>`<option>${s}</option>`).join('')}</select>
+        <div id="zayi-onizle" style="display:none;margin-top:14px;padding:12px 14px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--r-sm);font-size:13px;color:var(--red)"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn primary" onclick="saveZayi()" style="flex:1">Kaydet</button>
+        <button class="btn" onclick="document.getElementById('zayi-modal').style.display='none'">İptal</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+let _zayiMalzemeId='';
+function openAddZayi(){
+  if(!DB.malzeme.length){alert('Önce malzeme eklemelisin.');return;}
+  render();
+  setTimeout(()=>{
+    _zayiMalzemeId='';
+    document.getElementById('zayi-malzeme').value='';
+    document.getElementById('zayi-search').value='';
+    document.getElementById('zayi-miktar').value='';
+    document.getElementById('zayi-birim').textContent='';
+    document.getElementById('zayi-tarih').value=new Date().toISOString().slice(0,10);
+    document.getElementById('zayi-sebep').value=ZAYI_SEBEP[0];
+    document.getElementById('zayi-onizle').style.display='none';
+    document.getElementById('zayi-modal').style.display='flex';
+  },10);
+}
+
+function zayiKomboFiltrele(){
+  const inp=document.getElementById('zayi-search');
+  const list=document.getElementById('zayi-list');
+  if(!inp||!list)return;
+  const q=inp.value.toLocaleLowerCase('tr').trim();
+  const eslesen=DB.malzeme.filter(m=>{
+    if(!q)return true;
+    const hav=[m.ad,m.marka,...(m.alternatif_adlar||[])].filter(Boolean).join(' ').toLocaleLowerCase('tr');
+    return hav.includes(q);
+  }).slice(0,50);
+  list.innerHTML=eslesen.length
+    ?eslesen.map(m=>{
+        const etiket=(m.ad+(m.marka?' ('+m.marka+')':'')).replace(/'/g,"\\'");
+        return `<div class="combo-item" onmousedown="zayiKomboSec('${m.id}','${etiket}')"><span>${m.ad}${m.marka?' ('+m.marka+')':''}</span><span class="combo-sub">${fmtTL(m.son_fiyat)}/${m.birim}</span></div>`;
+      }).join('')
+    :'<div class="combo-empty">Sonuç yok</div>';
+  list.style.display='block';
+}
+
+function zayiKomboSec(id,etiket){
+  _zayiMalzemeId=id;
+  document.getElementById('zayi-malzeme').value=id;
+  document.getElementById('zayi-search').value=etiket;
+  const m=DB.malzeme.find(x=>x.id===id);
+  document.getElementById('zayi-birim').textContent=m?(' '+m.birim):'';
+  document.getElementById('zayi-list').style.display='none';
+  zayiOnizle();
+}
+
+function zayiOnizle(){
+  const note=document.getElementById('zayi-onizle');if(!note)return;
+  const m=DB.malzeme.find(x=>x.id===_zayiMalzemeId);
+  const miktar=parseFloat(document.getElementById('zayi-miktar').value)||0;
+  if(m&&miktar>0){
+    note.style.display='block';
+    note.innerHTML=`Bu zayinin maliyeti: <strong>${fmtTL((m.son_fiyat||0)*miktar)}</strong> (${fmt(miktar,2)} ${m.birim} × ${fmtTL(m.son_fiyat)})`;
+  } else {
+    note.style.display='none';
+  }
+}
+
+function saveZayi(){
+  const malzemeId=document.getElementById('zayi-malzeme').value;
+  const miktar=parseFloat(document.getElementById('zayi-miktar').value)||0;
+  if(!malzemeId){alert('Malzeme seç.');return;}
+  if(miktar<=0){alert('Miktar gir.');return;}
+  const tarihStr=document.getElementById('zayi-tarih').value;
+  const tarih=tarihStr?new Date(tarihStr).toISOString():new Date().toISOString();
+  DB.zayi.push({id:uid(),malzeme_id:malzemeId,miktar,sebep:document.getElementById('zayi-sebep').value,tarih});
+  saveDB();
+  document.getElementById('zayi-modal').style.display='none';
+  render();
+}
+
+function deleteZayi(id){
+  if(!confirm('Zayi kaydını sil?'))return;
+  DB.zayi=DB.zayi.filter(x=>x.id!==id);
   saveDB();render();
 }
 
