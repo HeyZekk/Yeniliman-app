@@ -347,10 +347,19 @@ function render(){
 /* ── DASHBOARD ── */
 function renderDashboard(){
   const analiz=DB.menu_items.map(m=>({...m,...menuAnaliz(m)}));
-  let ac=0,cc=0;
-  analiz.forEach(a=>{if(a.net>0){ac+=a.fc;cc++;}});
-  const avg=cc>0?ac/cc:0;
-  const sorunlu=analiz.filter(a=>a.fc>40).length;
+  const ICECEK_KAT=['Meşrubat','Alkollü İçki','İçecek'];
+  const icecekMi=m=>ICECEK_KAT.includes(m.kategori);
+
+  // Yiyecek ve içecek ayrı ortalama (ciro-ağırlıklı: toplam maliyet / toplam net gelir)
+  let yMaliyet=0,yNet=0,iMaliyet=0,iNet=0;
+  analiz.forEach(a=>{
+    if(a.net<=0)return;
+    if(icecekMi(a)){iMaliyet+=a.maliyet;iNet+=a.net;}
+    else{yMaliyet+=a.maliyet;yNet+=a.net;}
+  });
+  const yiyecekFC=yNet>0?(yMaliyet/yNet)*100:0;
+  const icecekFC=iNet>0?(iMaliyet/iNet)*100:0;
+  const sorunlu=analiz.filter(a=>a.fc>40&&!icecekMi(a)).length;
 
   const tableRows=analiz.length===0
     ?`<tr><td colspan="5"><div class="empty"><div class="big">Henüz menü ürünü yok</div>Reçete kurup menüye bağlayınca karlılık burada görünecek</div></td></tr>`
@@ -364,13 +373,16 @@ function renderDashboard(){
 
   return `<div class="page active">
     <div class="page-head"><h2>Genel Bakış</h2><p>Yeniliman Restaurant · kâr rakamları KDV hariç (gerçek) hesaplanır</p></div>
-    <div class="grid4" style="margin-bottom:18px">
+    <div class="grid3" style="margin-bottom:14px">
       <div class="metric"><div class="lbl">📦 Malzeme</div><div class="val num">${DB.malzeme.length}</div></div>
       <div class="metric"><div class="lbl">👨‍🍳 Reçete</div><div class="val num">${DB.recete.length}</div></div>
       <div class="metric"><div class="lbl">🍴 Menü ürünü</div><div class="val num">${DB.menu_items.length}</div></div>
-      <div class="metric"><div class="lbl">📊 Ort. food cost</div><div class="val num ${costColor(avg)}">%${fmt(avg,1)}</div></div>
     </div>
-    ${sorunlu>0?`<div class="warn-box">⚠️ ${sorunlu} ürünün food cost'u %40'ın üzerinde. Bu ürünlerin fiyatını gözden geçirmek isteyebilirsin.</div>`:''}
+    <div class="grid2" style="margin-bottom:18px">
+      <div class="metric"><div class="lbl">🍽 Yiyecek food cost <span style="color:var(--ink3);font-weight:400">(hedef %25-35)</span></div><div class="val num ${costColor(yiyecekFC)}">${yNet>0?'%'+fmt(yiyecekFC,1):'—'}</div></div>
+      <div class="metric"><div class="lbl">🥤 İçecek cost <span style="color:var(--ink3);font-weight:400">(hedef %15-30)</span></div><div class="val num ${icecekFC<=30?'cost-ok':icecekFC<=40?'cost-warn':'cost-bad'}">${iNet>0?'%'+fmt(icecekFC,1):'—'}</div></div>
+    </div>
+    ${sorunlu>0?`<div class="warn-box">⚠️ ${sorunlu} yiyecek ürününün food cost'u %40'ın üzerinde. Bu ürünlerin fiyatını gözden geçirmek isteyebilirsin.</div>`:''}
     <div class="card">
       <div class="card-title">Menü Karlılığı <span class="badge info">Hedef ≤ %32</span> <span class="badge neutral">net gelir = KDV hariç</span></div>
       <table>
@@ -390,6 +402,9 @@ function renderDashboard(){
         <button class="btn" onclick="danismanSor()">Sor</button>
       </div>
       <div id="danisman-cikti" style="display:none;margin-top:16px;padding:16px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);font-size:13.5px;line-height:1.6"></div>
+      <div id="danisman-indir-alan" style="display:none;margin-top:12px">
+        <button class="btn" onclick="raporIndir()">⬇ Bu raporu indir (HTML)</button>
+      </div>
     </div>
   </div>`;
 }
@@ -693,15 +708,20 @@ function basitMd(t){
     .replace(/\n{2,}/g,'<br><br>').replace(/\n/g,'<br>');
 }
 
+let _sonRapor=null; // indirme için son AI yanıtı
+
 async function danismanGenel(){
   if(!apiKey){alert('Önce API Key gir.');return;}
   if(!DB.menu_items.length){alert('Önce menü ürünü ekle ki değerlendirebileyim.');return;}
   const cikti=document.getElementById('danisman-cikti');
   cikti.style.display='block';
   cikti.innerHTML='<span class="spinner"></span> Maliyetlerin değerlendiriliyor...';
+  document.getElementById('danisman-indir-alan').style.display='none';
   try{
     const yanit=await danismanCagir('Menümün genel bir maliyet ve kârlılık değerlendirmesini yap. En çok dikkat etmem gereken ürünleri, güçlü yanları ve somut iyileştirme önerilerini söyle.');
     cikti.innerHTML=basitMd(yanit);
+    _sonRapor={baslik:'Genel Maliyet Değerlendirmesi',soru:null,yanit};
+    document.getElementById('danisman-indir-alan').style.display='block';
   }catch(e){cikti.innerHTML=`<span style="color:var(--red)">Hata: ${e.message}</span>`;}
 }
 
@@ -713,11 +733,79 @@ async function danismanSor(){
   const cikti=document.getElementById('danisman-cikti');
   cikti.style.display='block';
   cikti.innerHTML='<span class="spinner"></span> Düşünüyor...';
+  document.getElementById('danisman-indir-alan').style.display='none';
   try{
     const yanit=await danismanCagir(soru);
     cikti.innerHTML=`<div style="font-size:13px;color:var(--ink2);margin-bottom:8px">❓ ${soru}</div>`+basitMd(yanit);
+    _sonRapor={baslik:'Maliyet Danışmanı — Soru/Cevap',soru,yanit};
+    document.getElementById('danisman-indir-alan').style.display='block';
     inp.value='';
   }catch(e){cikti.innerHTML=`<span style="color:var(--red)">Hata: ${e.message}</span>`;}
+}
+
+// AI raporunu + menü kârlılık tablosunu HTML dosyası olarak indir
+function raporIndir(){
+  if(!_sonRapor){alert('Önce bir değerlendirme yap.');return;}
+  const tarih=new Date().toLocaleDateString('tr-TR');
+  const analiz=DB.menu_items.map(m=>({...m,...menuAnaliz(m)})).sort((a,b)=>b.fc-a.fc);
+  const ICECEK_KAT=['Meşrubat','Alkollü İçki','İçecek'];
+  let yM=0,yN=0,iM=0,iN=0;
+  analiz.forEach(a=>{if(a.net<=0)return;if(ICECEK_KAT.includes(a.kategori)){iM+=a.maliyet;iN+=a.net;}else{yM+=a.maliyet;yN+=a.net;}});
+  const yFC=yN>0?(yM/yN)*100:0,iFC=iN>0?(iM/iN)*100:0;
+
+  const satirlar=analiz.map(m=>`<tr>
+    <td>${m.ad}${m.kategori?' <span style="color:#888">('+m.kategori+')</span>':''}</td>
+    <td style="text-align:right">${fmtTL(m.maliyet)}</td>
+    <td style="text-align:right">${fmtTL(m.fiyat)}</td>
+    <td style="text-align:right">${fmtTL(m.net)}</td>
+    <td style="text-align:right;color:${m.kar>=0?'#1a7a44':'#a8322c'}">${fmtTL(m.kar)}</td>
+    <td style="text-align:right;font-weight:600;color:${m.fc<=32?'#1a7a44':m.fc<=40?'#9a6410':'#a8322c'}">%${fmt(m.fc,1)}</td>
+  </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Yeniliman Maliyet Raporu — ${tarih}</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#23201c;line-height:1.6}
+h1{font-size:22px;border-bottom:3px solid #0d7878;padding-bottom:10px}
+h2{font-size:16px;margin-top:30px;color:#085656}
+.meta{color:#6f6a62;font-size:13px}
+.metrikler{display:flex;gap:16px;margin:20px 0;flex-wrap:wrap}
+.m{flex:1;min-width:140px;border:1px solid #e4e1da;border-radius:10px;padding:14px}
+.m .l{font-size:12px;color:#6f6a62}
+.m .v{font-size:22px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+th,td{padding:8px 10px;border-bottom:1px solid #e4e1da;text-align:left}
+th{background:#f6f5f2;font-size:11px;text-transform:uppercase;color:#6f6a62}
+.rapor{background:#f6f5f2;border:1px solid #e4e1da;border-radius:10px;padding:18px;margin-top:12px}
+.foot{margin-top:40px;font-size:12px;color:#a39d92;border-top:1px solid #e4e1da;padding-top:12px}
+@media print{body{margin:0}}
+</style></head><body>
+<h1>🍽 Yeniliman — Maliyet Raporu</h1>
+<p class="meta">Tarih: ${tarih} · Karaburun, İzmir</p>
+
+<div class="metrikler">
+  <div class="m"><div class="l">Yiyecek food cost</div><div class="v">${yN>0?'%'+fmt(yFC,1):'—'}</div></div>
+  <div class="m"><div class="l">İçecek cost</div><div class="v">${iN>0?'%'+fmt(iFC,1):'—'}</div></div>
+  <div class="m"><div class="l">Menü ürünü</div><div class="v">${DB.menu_items.length}</div></div>
+</div>
+
+<h2>🤖 ${_sonRapor.baslik}</h2>
+${_sonRapor.soru?`<p class="meta"><strong>Soru:</strong> ${_sonRapor.soru}</p>`:''}
+<div class="rapor">${basitMd(_sonRapor.yanit)}</div>
+
+<h2>Menü Kârlılık Tablosu</h2>
+<table>
+  <thead><tr><th>Ürün</th><th style="text-align:right">Maliyet</th><th style="text-align:right">Satış</th><th style="text-align:right">Net Gelir</th><th style="text-align:right">Kâr</th><th style="text-align:right">Food Cost</th></tr></thead>
+  <tbody>${satirlar}</tbody>
+</table>
+
+<div class="foot">Bu rapor Yeniliman maliyet takip uygulamasıyla oluşturulmuştur. Kâr ve food cost rakamları KDV hariç (gerçek) hesaplanmıştır.</div>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`yeniliman-maliyet-raporu-${new Date().toISOString().slice(0,10)}.html`;
+  a.click();URL.revokeObjectURL(url);
 }
 
 // Menü modalında kategori AI önerisi
