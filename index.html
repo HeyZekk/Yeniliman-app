@@ -378,6 +378,19 @@ function renderDashboard(){
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+
+    <div class="card">
+      <div class="card-title">🤖 Maliyet Danışmanı <span class="badge info">yapay zeka</span></div>
+      <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Yapay zeka, yukarıdaki gerçek maliyet verilerini ve sektör standartlarını kullanarak menünü değerlendirir. Genel yorum isteyebilir veya kendi sorunu sorabilirsin.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn primary" onclick="danismanGenel()">📋 Genel Değerlendirme Yap</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="danisman-soru" placeholder="Bir şey sor: 'En zararlı ürünüm hangisi?' / 'Kalamarın maliyetini nasıl düşürürüm?'" onkeydown="danismanSoruKey(event)" style="flex:1">
+        <button class="btn" onclick="danismanSor()">Sor</button>
+      </div>
+      <div id="danisman-cikti" style="display:none;margin-top:16px;padding:16px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);font-size:13.5px;line-height:1.6"></div>
+    </div>
   </div>`;
 }
 
@@ -603,6 +616,199 @@ async function callClaude(msgContent){
     return null;
   }
 }
+
+/* ── MALİYET DANIŞMANI ── */
+// Tüm cost verisini AI'ın okuyabileceği bir özete çevir
+function danismanVeriOzeti(){
+  const sat=[];
+  DB.menu_items.forEach(m=>{
+    const a=menuAnaliz(m);
+    sat.push(`- ${m.ad}${m.kategori?' ('+m.kategori+')':''}: maliyet ${fmtTL(a.maliyet)}, satış ${fmtTL(a.fiyat)} (KDV %${m.satis_kdv!=null?m.satis_kdv:10} dahil), net gelir ${fmtTL(a.net)}, gerçek kâr ${fmtTL(a.kar)}, food cost %${fmt(a.fc,1)}${m.tip==='hazir'?' [hazır ürün]':''}`);
+  });
+  // Reçeteler (menüye bağlı olmayanlar dahil)
+  const recList=[];
+  DB.recete.forEach(r=>{
+    const bm=birimMaliyet(r);
+    recList.push(`- ${r.ad}${r.kategori?' ('+r.kategori+')':''}: birim maliyet ${fmtTL(bm)}/${r.birim||'porsiyon'}`);
+  });
+  // Bu ay zayi
+  const simdi=new Date();const buAy=simdi.getFullYear()+'-'+String(simdi.getMonth()+1).padStart(2,'0');
+  let buAyZayi=0;const zayiSebep={};
+  (DB.zayi||[]).filter(z=>z.tarih&&z.tarih.slice(0,7)===buAy).forEach(z=>{
+    const t=zayiMaliyet(z);buAyZayi+=t;
+    const s=z.sebep||'Diğer';zayiSebep[s]=(zayiSebep[s]||0)+t;
+  });
+  const zayiOzet=Object.entries(zayiSebep).map(([s,t])=>`${s}: ${fmtTL(t)}`).join(', ')||'kayıt yok';
+
+  return `RESTORAN: Yeniliman (Karaburun, İzmir — deniz kenarı, rakı-balık-meze konsepti, 15 masa)
+
+MENÜ ÜRÜNLERİ VE KÂRLILIK (food cost = KDV hariç maliyet ÷ KDV hariç net gelir):
+${sat.join('\n')||'(menü ürünü yok)'}
+
+REÇETELER:
+${recList.join('\n')||'(reçete yok)'}
+
+BU AY ZAYİ (fire/bozulma): toplam ${fmtTL(buAyZayi)} — ${zayiOzet}`;
+}
+
+const DANISMAN_SISTEM=`Sen bir restoran maliyet ve menü mühendisliği danışmanısın. Yeniliman adlı deniz kenarı bir restoranın gerçek maliyet verisiyle çalışıyorsun. Türkçe, samimi ama profesyonel, somut ve uygulanabilir konuş. Teori anlatma, doğrudan bu restoranın rakamlarına bak.
+
+BİLMEN GEREKEN SEKTÖR STANDARTLARI:
+- Yemek food cost hedefi: %25-35 ideal, %30 civarı iyi, %40 üstü sorunlu (fiyat artır veya porsiyon/reçete gözden geçir).
+- Meze/salata: %20-30. Balık/et ana yemek: %30-40 (deniz ürünü pahalı, biraz yüksek normaldir).
+- Meşrubat (su, kola): %10-20. Şişe bira: %25-35. Yüksek alkollü (rakı/viski kadeh): %15-25. Şişe şarap: %33-45.
+- Bar genel olarak mutfaktan daha kârlıdır; içecekler kâr motorudur.
+- Food cost KDV hariç hesaplanır (doğru olan budur). Yüksek KDV'li üründe net gelir düşer, food cost oransal artar — bu normaldir.
+- Zayi (fire/bozulma) cironun %2-5'ini geçmemeli; geçiyorsa porsiyon/sipariş/depolama gözden geçirilmeli.
+
+NASIL DAVRANMALI:
+- Önce dikkat çeken sorunları (yüksek food cost, zarar eden ürün) belirt, sonra güçlü yanları.
+- Somut öneri ver: "X ürününün food cost'u %48, ya fiyatı 280→320 yap ya porsiyonu küçült" gibi.
+- Rakamları kullan, genel geçer laf etme. Kısa ve net ol, madde madde yazabilirsin ama abartma.
+- Emin olmadığın yerde varsayım yapma, veriye dayan.`;
+
+async function danismanCagir(soru,sistemEk){
+  const veri=danismanVeriOzeti();
+  const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:2000,
+      system:DANISMAN_SISTEM,
+      messages:[{role:'user',content:`İŞTE GÜNCEL VERİLERİM:\n\n${veri}\n\n---\n\n${soru}`}]
+    })
+  });
+  if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||'API hatası: '+resp.status);}
+  const data=await resp.json();
+  return data.content.map(i=>i.text||'').join('');
+}
+
+// Basit markdown → HTML (kalın, madde, satır)
+function basitMd(t){
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^[-•]\s+(.+)$/gm,'<div style="padding-left:14px;text-indent:-10px">• $1</div>')
+    .replace(/\n{2,}/g,'<br><br>').replace(/\n/g,'<br>');
+}
+
+async function danismanGenel(){
+  if(!apiKey){alert('Önce API Key gir.');return;}
+  if(!DB.menu_items.length){alert('Önce menü ürünü ekle ki değerlendirebileyim.');return;}
+  const cikti=document.getElementById('danisman-cikti');
+  cikti.style.display='block';
+  cikti.innerHTML='<span class="spinner"></span> Maliyetlerin değerlendiriliyor...';
+  try{
+    const yanit=await danismanCagir('Menümün genel bir maliyet ve kârlılık değerlendirmesini yap. En çok dikkat etmem gereken ürünleri, güçlü yanları ve somut iyileştirme önerilerini söyle.');
+    cikti.innerHTML=basitMd(yanit);
+  }catch(e){cikti.innerHTML=`<span style="color:var(--red)">Hata: ${e.message}</span>`;}
+}
+
+async function danismanSor(){
+  if(!apiKey){alert('Önce API Key gir.');return;}
+  const inp=document.getElementById('danisman-soru');
+  const soru=inp.value.trim();
+  if(!soru)return;
+  const cikti=document.getElementById('danisman-cikti');
+  cikti.style.display='block';
+  cikti.innerHTML='<span class="spinner"></span> Düşünüyor...';
+  try{
+    const yanit=await danismanCagir(soru);
+    cikti.innerHTML=`<div style="font-size:13px;color:var(--ink2);margin-bottom:8px">❓ ${soru}</div>`+basitMd(yanit);
+    inp.value='';
+  }catch(e){cikti.innerHTML=`<span style="color:var(--red)">Hata: ${e.message}</span>`;}
+}
+
+// Menü modalında kategori AI önerisi
+async function miKatAiOner(){
+  const ad=document.getElementById('mi-ad').value.trim();
+  if(!ad){alert('Önce ürün adını yaz.');return;}
+  if(!apiKey){alert('Önce API Key gir.');return;}
+  const sel=document.getElementById('mi-kat');
+  const eski=sel.innerHTML;
+  sel.disabled=true;
+  const kat=await aiKategoriTahmin(ad,MENU_KATEGORILER);
+  sel.disabled=false;
+  if(kat){sel.value=kat;miKatDegis();}
+  else alert('Kategori belirlenemedi, elle seçebilirsin.');
+}
+
+// Reçete modalında kategori AI önerisi
+async function rKatAiOner(){
+  const ad=document.getElementById('r-ad').value.trim();
+  if(!ad){alert('Önce reçete adını yaz.');return;}
+  if(!apiKey){alert('Önce API Key gir.');return;}
+  const sel=document.getElementById('r-kat');
+  sel.disabled=true;
+  const kat=await aiKategoriTahmin(ad,RECETE_KATEGORILER);
+  sel.disabled=false;
+  if(kat)sel.value=kat;
+  else alert('Kategori belirlenemedi, elle seçebilirsin.');
+}
+
+function danismanSoruKey(e){if(e.key==='Enter'){e.preventDefault();danismanSor();}}
+
+/* ── AI KATEGORİZASYON ── */
+const MENU_KATEGORILER=['Balık','Et','Meze','Salata','Çorba','Kahvaltı','Tatlı','Meşrubat','Alkollü İçki','Pizza','Diğer'];
+const RECETE_KATEGORILER=['Balık','Et','Meze','Salata','Çorba','Kahvaltı','Tatlı','İçecek','Pizza','Sos & Harç (alt reçete)','Diğer'];
+
+// Tek bir ad için AI'dan kategori tahmini (eklerken kullanılır)
+async function aiKategoriTahmin(ad,kategoriler){
+  if(!apiKey||!ad)return null;
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',max_tokens:50,
+        messages:[{role:'user',content:`Bir restoran ürününü kategorize et. Ürün: "${ad}". Kategoriler: ${kategoriler.join(', ')}. SADECE kategori adını yaz, başka hiçbir şey yazma.`}]
+      })
+    });
+    if(!resp.ok)return null;
+    const data=await resp.json();
+    const c=data.content.map(i=>i.text||'').join('').trim();
+    return kategoriler.find(k=>k.toLocaleLowerCase('tr')===c.toLocaleLowerCase('tr'))||kategoriler.find(k=>c.includes(k))||null;
+  }catch(e){return null;}
+}
+
+// Toplu kategorize: kategorisiz menü ürünlerini veya reçeteleri AI ile etiketle
+async function aiKategorize(tip){
+  if(!apiKey){alert('Önce API Key gir.');return;}
+  const liste=tip==='menu'?DB.menu_items:DB.recete;
+  const kategoriler=tip==='menu'?MENU_KATEGORILER:RECETE_KATEGORILER;
+  const hedef=liste.filter(x=>!x.kategori);
+  if(!hedef.length){alert('Kategorisi olmayan ürün yok.');return;}
+  if(!confirm(`${hedef.length} ürünün kategorisi yapay zeka ile belirlenecek. Devam?`))return;
+
+  // Tek seferde topluca sor (token tasarrufu)
+  const adlar=hedef.map((x,i)=>`${i+1}. ${x.ad}`).join('\n');
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',max_tokens:2000,
+        messages:[{role:'user',content:`Aşağıdaki restoran ürünlerini kategorize et. Kullanabileceğin kategoriler: ${kategoriler.join(', ')}.\n\nÜrünler:\n${adlar}\n\nSADECE şu formatta JSON dizi döndür, başka hiçbir şey yazma: [{"no":1,"kategori":"Balık"},{"no":2,"kategori":"Meze"}]`}]
+      })
+    });
+    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||'API hatası');}
+    const data=await resp.json();
+    let txt=data.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim();
+    const m=txt.match(/\[[\s\S]*\]/);
+    if(!m)throw new Error('Yanıt işlenemedi');
+    const sonuc=JSON.parse(m[0]);
+    let n=0;
+    sonuc.forEach(s=>{
+      const item=hedef[s.no-1];
+      const kat=kategoriler.find(k=>k.toLocaleLowerCase('tr')===(s.kategori||'').toLocaleLowerCase('tr'));
+      if(item&&kat){item.kategori=kat;n++;}
+    });
+    saveDB();render();
+    alert(`✓ ${n} ürün kategorize edildi.`);
+  }catch(e){alert('Hata: '+e.message);}
+}
+
 
 function gosterOnay(parsed){
   _pendingFatura=parsed;
@@ -1489,6 +1695,7 @@ function filterRecete(){
 
 function renderRecete(){
   const kats=[...new Set(DB.recete.map(r=>r.kategori).filter(Boolean))];
+  const kategorisiz=DB.recete.filter(r=>!r.kategori).length;
   return `<div class="page active">
     <div class="page-head"><h2>Reçeteler</h2><p>${DB.recete.length} reçete · maliyetler malzeme fiyatlarına göre canlı hesaplanır</p></div>
     <div class="section-hd">
@@ -1499,6 +1706,7 @@ function renderRecete(){
           ${kats.map(k=>`<option value="${k}">${k}</option>`).join('')}
         </select>
       </div>
+      ${kategorisiz>0?`<button class="btn" onclick="aiKategorize('recete')" title="Kategorisi olmayan reçeteleri AI kategorize etsin">✨ AI Kategorize (${kategorisiz})</button>`:''}
       <button class="btn primary" onclick="openAddRecete()">+ Reçete Ekle</button>
     </div>
     <div id="recete-cards">${receteCards('','')}</div>
@@ -1526,7 +1734,7 @@ function renderReceteModal(){
             </select>
           </div>
         </div>
-        <div><label>Kategori</label>
+        <div><label>Kategori <button type="button" onclick="rKatAiOner()" style="border:none;background:none;color:var(--sea);cursor:pointer;font-size:11px;font-weight:600;padding:0;margin-left:4px">✨ AI öner</button></label>
         <select id="r-kat"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>İçecek</option><option>Pizza</option><option>Sos & Harç (alt reçete)</option><option>Diğer</option></select></div>
       </div>
 
@@ -1926,39 +2134,59 @@ function deleteRecete(id){
 }
 
 /* ── MENÜ ── */
-function renderMenu(){
-  const rows=DB.menu_items.length===0
-    ?`<div class="empty"><div class="big">Henüz menü ürünü eklenmedi</div>Reçeteli ürün veya hazır ürün (kola, su, bira) ekleyebilirsin</div>`
-    :`<div class="card" style="padding:0;overflow:hidden"><table>
-      <thead><tr><th>Ürün</th><th>Tür / Kaynak</th><th>Maliyet</th><th>Satış (KDV dahil)</th><th>Net Gelir</th><th>Gerçek Kâr</th><th>Food Cost</th><th></th></tr></thead>
-      <tbody>${DB.menu_items.map(m=>{
-        const a=menuAnaliz(m);
-        const kaynak=m.tip==='hazir'
-          ?`<span class="badge neutral">hazır ürün</span>`
-          :(()=>{const r=DB.recete.find(x=>x.id===m.recete_id);return r?`<span style="font-size:12px">${r.ad}</span>`:`<span style="color:var(--red);font-size:12px">reçete yok</span>`;})();
-        return `<tr>
-          <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}</small>`:''}</td>
-          <td>${kaynak}</td>
-          <td class="num">${fmtTL(a.maliyet)}</td>
-          <td class="num"><strong>${fmtTL(a.fiyat)}</strong><br><small style="color:var(--ink2)">KDV %${m.satis_kdv!=null?m.satis_kdv:10}</small></td>
-          <td class="num">${fmtTL(a.net)}</td>
-          <td class="num ${a.kar>=0?'cost-ok':'cost-bad'}"><strong>${fmtTL(a.kar)}</strong></td>
-          <td><span class="badge ${costBadge(a.fc)}">%${fmt(a.fc,1)}</span></td>
-          <td style="display:flex;gap:6px">
-            <button class="btn sm" onclick="editMI('${m.id}')" title="Düzenle">✎</button>
-            <button class="btn sm danger" onclick="deleteMI('${m.id}')" title="Sil">✕</button>
-          </td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
+function menuRows(q,kat){
+  let list=DB.menu_items;
+  if(q)list=list.filter(m=>m.ad.toLowerCase().includes(q.toLowerCase()));
+  if(kat)list=list.filter(m=>(m.kategori||'')===kat);
+  if(!list.length)return `<div class="empty"><div class="big">${DB.menu_items.length===0?'Henüz menü ürünü eklenmedi':'Sonuç bulunamadı'}</div>${DB.menu_items.length===0?'Reçeteli ürün veya hazır ürün (kola, su, bira) ekleyebilirsin':''}</div>`;
+  return `<div class="card" style="padding:0;overflow:hidden"><table>
+    <thead><tr><th>Ürün</th><th>Tür / Kaynak</th><th>Maliyet</th><th>Satış (KDV dahil)</th><th>Net Gelir</th><th>Gerçek Kâr</th><th>Food Cost</th><th></th></tr></thead>
+    <tbody>${list.map(m=>{
+      const a=menuAnaliz(m);
+      const kaynak=m.tip==='hazir'
+        ?`<span class="badge neutral">hazır ürün</span>`
+        :(()=>{const r=DB.recete.find(x=>x.id===m.recete_id);return r?`<span style="font-size:12px">${r.ad}</span>`:`<span style="color:var(--red);font-size:12px">reçete yok</span>`;})();
+      return `<tr>
+        <td><strong>${m.ad}</strong>${m.kategori?`<br><small style="color:var(--ink2)">${m.kategori}</small>`:''}</td>
+        <td>${kaynak}</td>
+        <td class="num">${fmtTL(a.maliyet)}</td>
+        <td class="num"><strong>${fmtTL(a.fiyat)}</strong><br><small style="color:var(--ink2)">KDV %${m.satis_kdv!=null?m.satis_kdv:10}</small></td>
+        <td class="num">${fmtTL(a.net)}</td>
+        <td class="num ${a.kar>=0?'cost-ok':'cost-bad'}"><strong>${fmtTL(a.kar)}</strong></td>
+        <td><span class="badge ${costBadge(a.fc)}">%${fmt(a.fc,1)}</span></td>
+        <td style="display:flex;gap:6px">
+          <button class="btn sm" onclick="editMI('${m.id}')" title="Düzenle">✎</button>
+          <button class="btn sm danger" onclick="deleteMI('${m.id}')" title="Sil">✕</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
 
+function filterMenu(){
+  const q=(document.getElementById('menuq')||{}).value||'';
+  const kat=(document.getElementById('menukat-filter')||{}).value||'';
+  const c=document.getElementById('menu-rows');
+  if(c)c.innerHTML=menuRows(q,kat);
+}
+
+function renderMenu(){
+  const kats=[...new Set(DB.menu_items.map(m=>m.kategori).filter(Boolean))];
+  const kategorisiz=DB.menu_items.filter(m=>!m.kategori).length;
   return `<div class="page active">
     <div class="page-head"><h2>Menü & Fiyat</h2><p>Reçeteli ve hazır ürünler · gerçek kâr KDV hariç hesaplanır</p></div>
     <div class="section-hd">
-      <div></div>
+      <div style="display:flex;gap:10px;flex:1">
+        <div class="search-box" style="margin-bottom:0;flex:1;max-width:300px"><input id="menuq" placeholder="Ürün ara..." oninput="filterMenu()"></div>
+        <select id="menukat-filter" style="max-width:160px" onchange="filterMenu()">
+          <option value="">Tüm kategoriler</option>
+          ${kats.map(k=>`<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
+      ${kategorisiz>0?`<button class="btn" onclick="aiKategorize('menu')" title="Kategorisi olmayan ürünleri AI kategorize etsin">✨ AI Kategorize (${kategorisiz})</button>`:''}
       <button class="btn primary" onclick="openAddMI()">+ Ürün Ekle</button>
     </div>
-    ${rows}
+    <div id="menu-rows">${menuRows('','')}</div>
     ${renderMIModal()}
   </div>`;
 }
@@ -1985,10 +2213,12 @@ function renderMIModal(){
 
       <div id="mi-recete-alan">
         <label>Bağlı reçete</label>
-        <select id="mi-recete" onchange="previewMI()">
-          <option value="">Reçete seç...</option>
-          ${DB.recete.map(r=>`<option value="${r.id}">${r.ad}</option>`).join('')}
-        </select>
+        <div class="combo">
+          <input type="hidden" id="mi-recete" value="">
+          <input type="text" class="combo-input" id="mi-recete-search" autocomplete="off" placeholder="Reçete ara..."
+            onfocus="miReceteKomboFiltrele()" oninput="miReceteKomboFiltrele()">
+          <div class="combo-list" id="mi-recete-list" style="display:none"></div>
+        </div>
       </div>
 
       <div id="mi-hazir-alan" style="display:none">
@@ -2006,7 +2236,7 @@ function renderMIModal(){
       </div>
 
       <div class="grid2">
-        <div><label>Kategori</label>
+        <div><label>Kategori <button type="button" onclick="miKatAiOner()" style="border:none;background:none;color:var(--sea);cursor:pointer;font-size:11px;font-weight:600;padding:0;margin-left:4px">✨ AI öner</button></label>
         <select id="mi-kat" onchange="miKatDegis()"><option value="">Seç...</option><option>Balık</option><option>Et</option><option>Meze</option><option>Salata</option><option>Çorba</option><option>Kahvaltı</option><option>Tatlı</option><option>Meşrubat</option><option>Alkollü İçki</option><option>Pizza</option><option>Diğer</option></select></div>
         <div><label>Satış KDV oranı</label>
         <select id="mi-kdv" onchange="previewMI()"><option value="10">%10 (yemek/meşrubat)</option><option value="20">%20 (alkollü içki)</option><option value="1">%1</option></select></div>
@@ -2044,6 +2274,36 @@ function miKatDegis(){
   const kdvSel=document.getElementById('mi-kdv');
   if(kat==='Alkollü İçki')kdvSel.value='20';
   else kdvSel.value='10';
+  previewMI();
+}
+
+// Reçeteli ürün reçete combobox'ı
+function miReceteKomboFiltrele(){
+  const inp=document.getElementById('mi-recete-search');
+  const list=document.getElementById('mi-recete-list');
+  if(!inp||!list)return;
+  const q=inp.value.toLocaleLowerCase('tr').trim();
+  const eslesen=DB.recete.filter(r=>{
+    if(!q)return true;
+    return r.ad.toLocaleLowerCase('tr').includes(q)||(r.kategori||'').toLocaleLowerCase('tr').includes(q);
+  }).slice(0,50);
+  list.innerHTML=eslesen.length
+    ?eslesen.map(r=>{
+        const etiket=r.ad.replace(/'/g,"\\'");
+        return `<div class="combo-item" onmousedown="miReceteKomboSec('${r.id}','${etiket}')">
+          <span>${r.ad}${r.kategori?' · '+r.kategori:''}</span><span class="combo-sub">${fmtTL(birimMaliyet(r))}/${r.birim||'porsiyon'}</span></div>`;
+      }).join('')
+    :'<div class="combo-empty">Reçete bulunamadı</div>';
+  list.style.display='block';
+}
+
+function miReceteKomboSec(id,etiket){
+  document.getElementById('mi-recete').value=id;
+  document.getElementById('mi-recete-search').value=etiket;
+  document.getElementById('mi-recete-list').style.display='none';
+  // Ürün adı boşsa reçete adıyla doldur
+  const adInp=document.getElementById('mi-ad');
+  if(adInp&&!adInp.value.trim())adInp.value=etiket;
   previewMI();
 }
 
@@ -2143,6 +2403,7 @@ function openAddMI(){
     document.getElementById('mi-title').textContent='Menü Ürünü Ekle';
     ['mi-id','mi-ad','mi-fiyat','mi-maliyet'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('mi-recete').value='';
+    document.getElementById('mi-recete-search').value='';
     document.getElementById('mi-hazir-malzeme').value='';
     document.getElementById('mi-hazir-search').value='';
     document.getElementById('mi-maliyet-alan').style.display='none';
@@ -2162,6 +2423,8 @@ function editMI(id){
     document.getElementById('mi-id').value=m.id;
     document.getElementById('mi-ad').value=m.ad;
     document.getElementById('mi-recete').value=m.recete_id||'';
+    const rec=DB.recete.find(x=>x.id===m.recete_id);
+    document.getElementById('mi-recete-search').value=rec?rec.ad:'';
     document.getElementById('mi-kat').value=m.kategori||'';
     document.getElementById('mi-fiyat').value=m.fiyat||'';
     document.getElementById('mi-kdv').value=m.satis_kdv!=null?m.satis_kdv:10;
